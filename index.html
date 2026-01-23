@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BirdRide - Discover Birds Along Your Cycling Routes</title>
+    <meta name="description" content="See what's flying along your ride before you go. Discover bird sightings along cycling routes.">
+
+    <!-- Leaflet CSS for maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="">
+
+    <!-- Leaflet MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css">
+
+    <!-- App styles -->
+    <link rel="stylesheet" href="css/styles.css">
+
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐦</text></svg>">
+</head>
+<body>
+    <div id="app">
+        <!-- Landing Page -->
+        <div id="landing-page" class="page active">
+            <header class="landing-header">
+                <h1 class="logo">BirdRide</h1>
+                <p class="tagline">See what's flying along your ride before you go</p>
+            </header>
+
+            <main class="landing-main">
+                <div class="unified-input-container">
+                    <div class="unified-input-wrapper">
+                        <span class="search-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <path d="M21 21l-4.35-4.35"></path>
+                            </svg>
+                        </span>
+                        <input
+                            type="text"
+                            id="unified-input"
+                            class="unified-input"
+                            placeholder="Paste a RideWithGPS link or search for a location..."
+                            autocomplete="off"
+                            spellcheck="false"
+                        >
+                        <button id="clear-input" class="clear-button hidden" aria-label="Clear input">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 6L6 18M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Dropdown container for autocomplete/routes -->
+                    <div id="input-dropdown" class="input-dropdown hidden">
+                        <!-- Dynamic content -->
+                    </div>
+
+                    <!-- Error message -->
+                    <div id="input-error" class="input-error hidden"></div>
+                </div>
+
+                <!-- Loading indicator -->
+                <div id="landing-loading" class="loading-indicator hidden">
+                    <div class="spinner"></div>
+                    <span>Loading route...</span>
+                </div>
+            </main>
+
+            <footer class="landing-footer">
+                <p>Bird data from <a href="https://ebird.org" target="_blank" rel="noopener">eBird</a> | Routes from <a href="https://ridewithgps.com" target="_blank" rel="noopener">RideWithGPS</a></p>
+            </footer>
+        </div>
+
+        <!-- Map Page -->
+        <div id="map-page" class="page">
+            <header class="map-header">
+                <button id="back-button" class="back-button" aria-label="Back to search">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 12H5M12 19l-7-7 7-7"></path>
+                    </svg>
+                    <span class="back-text">Back</span>
+                </button>
+
+                <div class="route-info">
+                    <h1 id="route-name" class="route-name">Route Name</h1>
+                    <span id="route-distance" class="route-distance">0 mi</span>
+                </div>
+
+                <div class="header-controls">
+                    <!-- Mode selector -->
+                    <div class="mode-selector">
+                        <div class="mode-dropdown">
+                            <button id="mode-recent" class="mode-button active" data-mode="recent">
+                                <span>Recent: Last </span>
+                                <select id="time-window" class="time-select">
+                                    <option value="7">7 days</option>
+                                    <option value="14" selected>14 days</option>
+                                    <option value="30">30 days</option>
+                                </select>
+                            </button>
+                        </div>
+                        <div class="mode-dropdown">
+                            <button id="mode-expected" class="mode-button" data-mode="expected">
+                                <span>Expected in: </span>
+                                <select id="month-select" class="month-select">
+                                    <option value="1">January</option>
+                                    <option value="2">February</option>
+                                    <option value="3">March</option>
+                                    <option value="4">April</option>
+                                    <option value="5">May</option>
+                                    <option value="6">June</option>
+                                    <option value="7">July</option>
+                                    <option value="8">August</option>
+                                    <option value="9">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Rarity filter -->
+                    <div class="rarity-filter">
+                        <button id="filter-notable" class="filter-button active" data-filter="notable">Notable</button>
+                        <button id="filter-all" class="filter-button" data-filter="all">All Birds</button>
+                    </div>
+                </div>
+            </header>
+
+            <div class="map-content">
+                <!-- Map container -->
+                <div id="map-container" class="map-container">
+                    <div id="map" class="map"></div>
+
+                    <!-- Map loading overlay -->
+                    <div id="map-loading" class="map-loading hidden">
+                        <div class="spinner"></div>
+                        <span>Loading bird data...</span>
+                    </div>
+                </div>
+
+                <!-- Bird list sidebar (desktop) / bottom sheet (mobile) -->
+                <aside id="bird-sidebar" class="bird-sidebar">
+                    <div class="sidebar-header">
+                        <h2 class="sidebar-title">Birds Along Route</h2>
+                        <span id="bird-count" class="bird-count">0 birds</span>
+
+                        <!-- Mobile toggle handle -->
+                        <div class="sheet-handle" aria-hidden="true"></div>
+                    </div>
+
+                    <div id="bird-list" class="bird-list">
+                        <!-- Bird cards rendered here -->
+                    </div>
+
+                    <!-- Empty state -->
+                    <div id="empty-state" class="empty-state hidden">
+                        <div class="empty-icon">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M12 19c-4-4-8-6.5-8-10a8 8 0 1116 0c0 3.5-4 6-8 10z"></path>
+                                <circle cx="12" cy="9" r="2"></circle>
+                            </svg>
+                        </div>
+                        <p id="empty-message" class="empty-message">No birds found</p>
+                        <p id="empty-suggestion" class="empty-suggestion"></p>
+                    </div>
+                </aside>
+
+                <!-- Bird detail panel -->
+                <div id="bird-detail" class="bird-detail hidden">
+                    <button id="close-detail" class="close-detail" aria-label="Close details">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 6L6 18M6 6l12 12"></path>
+                        </svg>
+                    </button>
+
+                    <div class="detail-content">
+                        <div class="detail-photo-container">
+                            <img id="detail-photo" class="detail-photo" src="" alt="">
+                        </div>
+
+                        <div class="detail-info">
+                            <h2 id="detail-name" class="detail-name"></h2>
+                            <p id="detail-scientific" class="detail-scientific"></p>
+
+                            <div class="detail-divider"></div>
+
+                            <div class="detail-meta">
+                                <div id="detail-rarity" class="detail-rarity"></div>
+                                <div id="detail-date" class="detail-date"></div>
+                                <div id="detail-location" class="detail-location"></div>
+                                <div id="detail-observers" class="detail-observers"></div>
+                            </div>
+
+                            <a id="detail-link" class="detail-link" href="#" target="_blank" rel="noopener">
+                                Learn More on eBird
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"></path>
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+
+    <!-- Leaflet MarkerCluster JS -->
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+
+    <!-- App scripts -->
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
