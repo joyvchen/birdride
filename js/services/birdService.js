@@ -3,9 +3,10 @@
  * Handles integration with eBird API for bird sighting data
  */
 
+import { config, hasEBirdKey } from '../config.js';
+
 // eBird API configuration
-// Note: In production, API calls should go through a backend to protect the API key
-const EBIRD_API_BASE = 'https://api.ebird.org/v2';
+const EBIRD_API_BASE = config.ebird.baseUrl;
 
 // Bird photo sources (using free placeholder images for demo)
 // In production, you'd use eBird media or licensed bird photo APIs
@@ -25,11 +26,62 @@ const BIRD_PHOTOS = {
  * @returns {Promise<array>} Bird observations
  */
 export async function fetchRecentBirds(coordinates, days = 14) {
-    // In production, this would call the eBird API:
-    // GET /v2/data/obs/geo/recent?lat={lat}&lng={lng}&dist={km}&back={days}
+    // Use real API if configured, otherwise use mock data
+    if (!hasEBirdKey()) {
+        return getMockRecentBirds(coordinates, days);
+    }
 
-    // For demo, return mock data
-    return getMockRecentBirds(coordinates, days);
+    // Sample points along the route to query
+    const samplePoints = sampleCoordinates(coordinates, config.app.maxSamplePoints || 10);
+    const allBirds = new Map(); // Use map to dedupe by species
+
+    // Query eBird for each sample point
+    for (const [lat, lng] of samplePoints) {
+        try {
+            const response = await fetch(
+                `${EBIRD_API_BASE}/data/obs/geo/recent?` + new URLSearchParams({
+                    lat: lat.toFixed(4),
+                    lng: lng.toFixed(4),
+                    dist: config.app.searchRadiusKm || 2.5,
+                    back: days,
+                }),
+                {
+                    headers: {
+                        'X-eBirdApiToken': config.ebird.apiKey,
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                console.warn('eBird API error:', response.status);
+                continue;
+            }
+
+            const birds = await response.json();
+
+            // Process and dedupe birds
+            for (const bird of birds) {
+                if (!allBirds.has(bird.speciesCode)) {
+                    allBirds.set(bird.speciesCode, {
+                        speciesCode: bird.speciesCode,
+                        comName: bird.comName,
+                        sciName: bird.sciName,
+                        rarity: bird.obsReviewed ? 'rare' : 'common', // Simplified
+                        lat: bird.lat,
+                        lng: bird.lng,
+                        obsDt: bird.obsDt,
+                        howMany: bird.howMany || 1,
+                        numObservers: 1, // Not in basic response
+                        locName: bird.locName,
+                    });
+                }
+            }
+        } catch (error) {
+            console.warn('Error fetching birds for point:', error);
+        }
+    }
+
+    return Array.from(allBirds.values());
 }
 
 /**
@@ -54,10 +106,83 @@ export async function fetchNotableBirds(coordinates, days = 14) {
  * @returns {Promise<array>} Expected birds with frequency data
  */
 export async function fetchExpectedBirds(coordinates, month) {
-    // In production, this would use eBird bar chart / frequency data
-    // This requires region-based queries and historical data
+    // Note: eBird's frequency/bar chart data requires region codes,
+    // which would need a separate geocoding step. For now, we use
+    // the recent notable observations as a proxy, or fall back to mock data.
 
-    return getMockExpectedBirds(coordinates, month);
+    if (!hasEBirdKey()) {
+        return getMockExpectedBirds(coordinates, month);
+    }
+
+    // For real implementation, you would:
+    // 1. Get the region code for the route area (e.g., "US-WA-033")
+    // 2. Call /v2/product/spplist/{regionCode} for species list
+    // 3. Call /v2/product/checklist/view/{subId} for frequency data
+    // For now, return notable birds from the area as "expected rare birds"
+
+    const [lat, lng] = coordinates[Math.floor(coordinates.length / 2)];
+
+    try {
+        const response = await fetch(
+            `${EBIRD_API_BASE}/data/obs/geo/recent/notable?` + new URLSearchParams({
+                lat: lat.toFixed(4),
+                lng: lng.toFixed(4),
+                dist: 25, // Wider radius for expected birds
+                back: 30,
+            }),
+            {
+                headers: {
+                    'X-eBirdApiToken': config.ebird.apiKey,
+                },
+            }
+        );
+
+        if (!response.ok) {
+            return getMockExpectedBirds(coordinates, month);
+        }
+
+        const birds = await response.json();
+        const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'];
+
+        return birds.slice(0, 20).map(bird => ({
+            speciesCode: bird.speciesCode,
+            comName: bird.comName,
+            sciName: bird.sciName,
+            rarity: 'rare',
+            lat: bird.lat,
+            lng: bird.lng,
+            frequency: 'Sometimes seen',
+            expectedIn: monthNames[month],
+            habitat: 'Various habitats',
+            isExpected: true,
+        }));
+    } catch (error) {
+        console.warn('Error fetching expected birds:', error);
+        return getMockExpectedBirds(coordinates, month);
+    }
+}
+
+/**
+ * Sample coordinates along a route
+ * @param {array} coordinates - Full route coordinates
+ * @param {number} maxPoints - Maximum points to return
+ * @returns {array} Sampled coordinates
+ */
+function sampleCoordinates(coordinates, maxPoints) {
+    if (coordinates.length <= maxPoints) {
+        return coordinates;
+    }
+
+    const step = Math.floor(coordinates.length / maxPoints);
+    const sampled = [];
+
+    for (let i = 0; i < coordinates.length; i += step) {
+        sampled.push(coordinates[i]);
+        if (sampled.length >= maxPoints) break;
+    }
+
+    return sampled;
 }
 
 /**
