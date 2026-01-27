@@ -1,33 +1,36 @@
 #!/bin/bash
 
-# BirdRide - Local Development Server
-# This script starts a simple web server to run the app locally
+# BirdRide - Start Server
+# This script installs dependencies and starts the Node.js server
 
 echo ""
-echo "  🐦 BirdRide - Starting local server..."
+echo "  BirdRide - Starting server..."
 echo ""
-
-# Check for Python
-if command -v python3 &> /dev/null; then
-    PYTHON=python3
-elif command -v python &> /dev/null; then
-    PYTHON=python
-else
-    echo "  ❌ Error: Python is required but not installed."
-    echo "     Install Python 3 from https://python.org"
-    exit 1
-fi
 
 # Get the directory where this script is located
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$DIR"
 
-# Start server
-PORT=8080
-echo "  ✓ Server starting on http://localhost:$PORT"
-echo "  ✓ Open this URL in your web browser"
-echo ""
-echo "  Press Ctrl+C to stop the server"
-echo ""
+# Check for Node.js
+if ! command -v node &> /dev/null; then
+    echo "  Error: Node.js is required but not installed."
+    echo "  Install Node.js from https://nodejs.org"
+    exit 1
+fi
 
-$PYTHON -m http.server $PORT
+# Check for npm
+if ! command -v npm &> /dev/null; then
+    echo "  Error: npm is required but not installed."
+    echo "  Install Node.js from https://nodejs.org (npm is included)"
+    exit 1
+fi
+
+# Install dependencies if node_modules doesn't exist
+if [ ! -d "node_modules" ]; then
+    echo "  Installing dependencies..."
+    npm install
+    echo ""
+fi
+
+# Start the server
+node server.js

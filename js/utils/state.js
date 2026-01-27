@@ -18,10 +18,9 @@ const state = {
     selectedBird: null,
 
     // Filters
-    mode: 'recent', // 'recent' | 'expected'
-    timeWindow: 14, // 7, 14, 30 days for recent mode
-    selectedMonth: new Date().getMonth() + 1, // 1-12 for expected mode
-    rarityFilter: 'notable', // 'notable' | 'all'
+    timeWindow: 14, // 7, 14, 30 days
+    distanceFilter: 0.25, // miles from route (0.25, 0.5, 1)
+    rarityFilter: 'all', // 'notable' | 'all'
 
     // UI state
     isLoading: false,
@@ -100,10 +99,9 @@ export function resetState() {
         birds: [],
         filteredBirds: [],
         selectedBird: null,
-        mode: 'recent',
         timeWindow: 14,
-        selectedMonth: new Date().getMonth() + 1,
-        rarityFilter: 'notable',
+        distanceFilter: 0.25,
+        rarityFilter: 'all',
         isLoading: false,
         error: null,
         sidebarExpanded: false,
@@ -115,20 +113,113 @@ export function resetState() {
  */
 export function applyFilters() {
     const birds = state.birds;
-    const filter = state.rarityFilter;
+    const routeCoords = state.routeGeoJSON;
+    const distanceFilter = state.distanceFilter;
+    const rarityFilter = state.rarityFilter;
 
-    let filtered;
-    if (filter === 'notable') {
-        filtered = birds.filter(bird =>
-            bird.rarity === 'rare' || bird.rarity === 'uncommon'
-        );
-    } else {
-        filtered = [...birds];
+    let filtered = [...birds];
+
+    // Filter by distance from route
+    if (routeCoords && routeCoords.length > 0) {
+        filtered = filtered.filter(bird => {
+            const distanceToRoute = getMinDistanceToRoute(bird.lat, bird.lng, routeCoords);
+            return distanceToRoute <= distanceFilter;
+        });
     }
 
-    // Sort by rarity (rare first, then uncommon, then common)
-    const rarityOrder = { rare: 0, uncommon: 1, common: 2 };
-    filtered.sort((a, b) => rarityOrder[a.rarity] - rarityOrder[b.rarity]);
+    // Filter by rarity
+    if (rarityFilter === 'notable') {
+        filtered = filtered.filter(bird =>
+            bird.rarity === 'rare' || bird.rarity === 'uncommon'
+        );
+    }
+
+    // Sort by observation date (most recent first)
+    filtered.sort((a, b) => {
+        const dateA = a.obsDt ? new Date(a.obsDt) : new Date(0);
+        const dateB = b.obsDt ? new Date(b.obsDt) : new Date(0);
+        return dateB - dateA;
+    });
 
     setState({ filteredBirds: filtered });
+}
+
+/**
+ * Calculate the minimum distance from a point to the route (in miles)
+ * @param {number} lat - Bird latitude
+ * @param {number} lng - Bird longitude
+ * @param {array} routeCoords - Array of [lat, lng] route coordinates
+ * @returns {number} Distance in miles
+ */
+function getMinDistanceToRoute(lat, lng, routeCoords) {
+    let minDistance = Infinity;
+
+    // Check distance to each segment of the route
+    for (let i = 0; i < routeCoords.length - 1; i++) {
+        const [lat1, lng1] = routeCoords[i];
+        const [lat2, lng2] = routeCoords[i + 1];
+
+        // Calculate distance from point to line segment
+        const distance = pointToSegmentDistance(lat, lng, lat1, lng1, lat2, lng2);
+        if (distance < minDistance) {
+            minDistance = distance;
+        }
+    }
+
+    // Also check distance to each route point (for single points or endpoints)
+    for (const [routeLat, routeLng] of routeCoords) {
+        const distance = haversineDistance(lat, lng, routeLat, routeLng);
+        if (distance < minDistance) {
+            minDistance = distance;
+        }
+    }
+
+    return minDistance;
+}
+
+/**
+ * Calculate distance from a point to a line segment (in miles)
+ */
+function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+
+    if (dx === 0 && dy === 0) {
+        // Segment is a point
+        return haversineDistance(px, py, x1, y1);
+    }
+
+    // Calculate projection of point onto line
+    const t = Math.max(0, Math.min(1,
+        ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)
+    ));
+
+    // Closest point on segment
+    const closestLat = x1 + t * dx;
+    const closestLng = y1 + t * dy;
+
+    return haversineDistance(px, py, closestLat, closestLng);
+}
+
+/**
+ * Calculate distance between two points using Haversine formula (in miles)
+ */
+function haversineDistance(lat1, lng1, lat2, lng2) {
+    const R = 3959; // Earth's radius in miles
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+/**
+ * Convert degrees to radians
+ */
+function toRad(deg) {
+    return deg * (Math.PI / 180);
 }

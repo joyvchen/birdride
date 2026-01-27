@@ -32,31 +32,37 @@
 
             <main class="landing-main">
                 <div class="unified-input-container">
-                    <div class="unified-input-wrapper">
-                        <span class="search-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="11" cy="11" r="8"></circle>
-                                <path d="M21 21l-4.35-4.35"></path>
-                            </svg>
-                        </span>
-                        <input
-                            type="text"
-                            id="unified-input"
-                            class="unified-input"
-                            placeholder="Paste a RideWithGPS link or search for a location..."
-                            autocomplete="off"
-                            spellcheck="false"
-                        >
-                        <button id="clear-input" class="clear-button hidden" aria-label="Clear input">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M18 6L6 18M6 6l12 12"></path>
-                            </svg>
+                    <div class="unified-input-row">
+                        <div class="unified-input-wrapper">
+                            <span class="search-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                                </svg>
+                            </span>
+                            <input
+                                type="text"
+                                id="unified-input"
+                                class="unified-input"
+                                placeholder="Paste a RideWithGPS route link..."
+                                autocomplete="off"
+                                spellcheck="false"
+                            >
+                            <button id="clear-input" class="clear-button hidden" aria-label="Clear input">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M18 6L6 18M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <button id="load-route-btn" class="load-route-button" disabled>
+                            Show Birds on Route
+                            <span class="enter-hint">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 10l-5 5 5 5"/>
+                                    <path d="M20 4v7a4 4 0 0 1-4 4H4"/>
+                                </svg>
+                            </span>
                         </button>
-                    </div>
-
-                    <!-- Dropdown container for autocomplete/routes -->
-                    <div id="input-dropdown" class="input-dropdown hidden">
-                        <!-- Dynamic content -->
                     </div>
 
                     <!-- Error message -->
@@ -91,43 +97,30 @@
                 </div>
 
                 <div class="header-controls">
-                    <!-- Mode selector -->
-                    <div class="mode-selector">
-                        <div class="mode-dropdown">
-                            <button id="mode-recent" class="mode-button active" data-mode="recent">
-                                <span>Recent: Last </span>
-                                <select id="time-window" class="time-select">
-                                    <option value="7">7 days</option>
-                                    <option value="14" selected>14 days</option>
-                                    <option value="30">30 days</option>
-                                </select>
-                            </button>
-                        </div>
-                        <div class="mode-dropdown">
-                            <button id="mode-expected" class="mode-button" data-mode="expected">
-                                <span>Expected in: </span>
-                                <select id="month-select" class="month-select">
-                                    <option value="1">January</option>
-                                    <option value="2">February</option>
-                                    <option value="3">March</option>
-                                    <option value="4">April</option>
-                                    <option value="5">May</option>
-                                    <option value="6">June</option>
-                                    <option value="7">July</option>
-                                    <option value="8">August</option>
-                                    <option value="9">September</option>
-                                    <option value="10">October</option>
-                                    <option value="11">November</option>
-                                    <option value="12">December</option>
-                                </select>
-                            </button>
-                        </div>
+                    <!-- Time window selector -->
+                    <div class="time-selector">
+                        <span>Last </span>
+                        <select id="time-window" class="time-select">
+                            <option value="7">7 days</option>
+                            <option value="14" selected>14 days</option>
+                            <option value="30">30 days</option>
+                        </select>
+                    </div>
+
+                    <!-- Distance filter -->
+                    <div class="distance-selector">
+                        <span>Within </span>
+                        <select id="distance-filter" class="distance-select">
+                            <option value="0.25" selected>0.25 mi</option>
+                            <option value="0.5">0.5 mi</option>
+                            <option value="1">1 mi</option>
+                        </select>
                     </div>
 
                     <!-- Rarity filter -->
                     <div class="rarity-filter">
-                        <button id="filter-notable" class="filter-button active" data-filter="notable">Notable</button>
-                        <button id="filter-all" class="filter-button" data-filter="all">All Birds</button>
+                        <button id="filter-notable" class="filter-button" data-filter="notable">Notable</button>
+                        <button id="filter-all" class="filter-button active" data-filter="all">All Birds</button>
                     </div>
                 </div>
             </header>
@@ -182,6 +175,7 @@
                     <div class="detail-content">
                         <div class="detail-photo-container">
                             <img id="detail-photo" class="detail-photo" src="" alt="">
+                            <p id="detail-photo-credit" class="detail-photo-credit hidden"></p>
                         </div>
 
                         <div class="detail-info">

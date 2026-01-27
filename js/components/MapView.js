@@ -4,8 +4,8 @@
  */
 
 import { getState, setState, subscribe } from '../utils/state.js';
-import { extractRouteCoordinates, calculateRouteBounds } from '../services/routeService.js';
-import { getBirdPhotoUrl } from '../services/birdService.js';
+import { extractRouteCoordinates } from '../services/routeService.js';
+import { fetchBirdPhoto } from '../services/birdService.js';
 
 // Map instance
 let map = null;
@@ -16,6 +16,12 @@ let endMarker = null;
 
 // Marker references for highlighting
 const markersByBirdId = new Map();
+
+// Temporary marker for alternate sighting locations
+let sightingMarker = null;
+
+// Placeholder image for bird markers (base64 encoded SVG)
+const MARKER_PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCBmaWxsPSIjZjNmNGY2IiB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIvPjx0ZXh0IHk9Ii42NWVtIiBmb250LXNpemU9IjUwIiB4PSIyNSI+8J+QpjwvdGV4dD48L3N2Zz4=';
 
 /**
  * Initialize the map
@@ -126,16 +132,17 @@ export function displayRoute(routeData) {
         });
     }
 
-    // Fit map to route bounds
-    const bounds = calculateRouteBounds(coordinates);
-    if (bounds) {
-        map.fitBounds([
-            [bounds.south, bounds.west],
-            [bounds.north, bounds.east],
-        ], {
-            padding: [50, 50],
+    // Fit map to route bounds with asymmetric padding for sidebar
+    // Use setTimeout to ensure map container has correct size after page transition
+    setTimeout(() => {
+        map.invalidateSize();
+        const sidebarWidth = window.innerWidth > 768 ? 380 : 60;
+        map.fitBounds(routeLayer.getBounds(), {
+            paddingTopLeft: [60, 60],
+            paddingBottomRight: [sidebarWidth, 60],
+            animate: false,
         });
-    }
+    }, 150);
 }
 
 /**
@@ -169,18 +176,52 @@ function updateBirdMarkers(birds) {
         birdMarkersLayer.addLayer(marker);
         markersByBirdId.set(index, marker);
     });
+
+    // Load photos asynchronously to update marker icons
+    loadMarkerPhotos(birds);
+}
+
+// Cache of loaded photo URLs by species code
+const photoUrlCache = new Map();
+
+/**
+ * Load photos asynchronously for marker icons
+ */
+async function loadMarkerPhotos(birds) {
+    for (let i = 0; i < birds.length; i++) {
+        const bird = birds[i];
+        try {
+            const photoData = await fetchBirdPhoto(bird.speciesCode, bird.comName);
+            if (photoData && photoData.thumbnail) {
+                // Cache the photo URL for this species
+                photoUrlCache.set(bird.speciesCode, photoData.thumbnail);
+
+                // Update the marker's icon with the real photo
+                const marker = markersByBirdId.get(i);
+                if (marker) {
+                    const newIcon = createBirdIconWithPhoto(bird, i, photoData.thumbnail);
+                    marker.setIcon(newIcon);
+                }
+            }
+        } catch (error) {
+            // Silently fail for individual photos
+        }
+    }
 }
 
 /**
  * Create a bird marker
  */
 function createBirdMarker(bird, index) {
-    const icon = createBirdIcon(bird);
+    const icon = createBirdIcon(bird, index);
 
     const marker = L.marker([bird.lat, bird.lng], {
         icon: icon,
         riseOnHover: true,
     });
+
+    // Store bird data on marker for photo loading
+    marker.birdData = { ...bird, index };
 
     // Add tooltip
     marker.bindTooltip(bird.comName, {
@@ -189,8 +230,9 @@ function createBirdMarker(bird, index) {
         className: 'bird-tooltip',
     });
 
-    // Handle click
-    marker.on('click', () => {
+    // Handle click - stop propagation to prevent map click handler from closing detail
+    marker.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
         setState({ selectedBird: { ...bird, index } });
     });
 
@@ -200,15 +242,22 @@ function createBirdMarker(bird, index) {
 /**
  * Create custom bird marker icon
  */
-function createBirdIcon(bird) {
-    const photoUrl = getBirdPhotoUrl(bird.comName);
+function createBirdIcon(bird, index) {
+    // Check if we have a cached photo for this species
+    const photoUrl = photoUrlCache.get(bird.speciesCode) || MARKER_PLACEHOLDER;
+    return createBirdIconWithPhoto(bird, index, photoUrl);
+}
+
+/**
+ * Create custom bird marker icon with a specific photo URL
+ */
+function createBirdIconWithPhoto(bird, index, photoUrl) {
     const rarityClass = bird.rarity || 'common';
 
     return L.divIcon({
         html: `
-            <div class="bird-marker ${rarityClass}">
-                <img src="${photoUrl}" alt="${bird.comName}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                <span class="bird-marker-icon" style="display:none;">🐦</span>
+            <div class="bird-marker ${rarityClass}" data-marker-index="${index}">
+                <img src="${photoUrl}" alt="" class="bird-marker-img">
             </div>
         `,
         className: '',
@@ -218,21 +267,92 @@ function createBirdIcon(bird) {
 }
 
 /**
+ * Create a temporary sighting marker at an alternate location
+ */
+function createSightingMarker(lat, lng, bird) {
+    // Remove existing sighting marker if any
+    if (sightingMarker) {
+        map.removeLayer(sightingMarker);
+        sightingMarker = null;
+    }
+
+    // Get photo URL from cache or use placeholder
+    const photoUrl = photoUrlCache.get(bird.speciesCode) || MARKER_PLACEHOLDER;
+    const rarityClass = bird.rarity || 'common';
+
+    const icon = L.divIcon({
+        html: `
+            <div class="bird-marker sighting-highlight ${rarityClass}">
+                <img src="${photoUrl}" alt="" class="bird-marker-img">
+            </div>
+        `,
+        className: '',
+        iconSize: [44, 44],
+        iconAnchor: [22, 22],
+    });
+
+    sightingMarker = L.marker([lat, lng], {
+        icon: icon,
+        zIndexOffset: 2000,  // Above other markers
+    }).addTo(map);
+
+    sightingMarker.bindTooltip(bird.comName, {
+        permanent: false,
+        direction: 'top',
+        className: 'bird-tooltip',
+    });
+
+    return sightingMarker;
+}
+
+/**
  * Highlight the selected bird marker
  */
 function highlightSelectedBird(bird) {
+    // Remove highlight from all markers
+    document.querySelectorAll('.bird-marker.selected').forEach(el => {
+        el.classList.remove('selected');
+    });
+
+    // Remove any existing sighting marker
+    if (sightingMarker) {
+        map.removeLayer(sightingMarker);
+        sightingMarker = null;
+    }
+
     if (!bird) return;
 
     const marker = markersByBirdId.get(bird.index);
-    if (marker) {
-        // Pan to marker
-        map.panTo([bird.lat, bird.lng], {
-            animate: true,
-            duration: 0.5,
-        });
+    if (!marker) return;
 
-        // Open tooltip briefly
-        marker.openTooltip();
+    // Check if the selected coordinates differ from the primary marker location
+    const markerLatLng = marker.getLatLng();
+    const isAlternateLocation =
+        Math.abs(markerLatLng.lat - bird.lat) > 0.0001 ||
+        Math.abs(markerLatLng.lng - bird.lng) > 0.0001;
+
+    if (isAlternateLocation) {
+        // Create a temporary marker at the alternate sighting location
+        const tempMarker = createSightingMarker(bird.lat, bird.lng, bird);
+        map.panTo([bird.lat, bird.lng], { animate: true, duration: 0.5 });
+        tempMarker.openTooltip();
+    } else {
+        // Primary location - use existing marker highlighting logic
+        const highlightMarker = () => {
+            const markerEl = document.querySelector(`[data-marker-index="${bird.index}"]`);
+            if (markerEl) {
+                markerEl.classList.add('selected');
+            }
+            marker.openTooltip();
+        };
+
+        const visibleParent = birdMarkersLayer.getVisibleParent(marker);
+        if (visibleParent === marker) {
+            map.panTo([bird.lat, bird.lng], { animate: true, duration: 0.5 });
+            highlightMarker();
+        } else {
+            birdMarkersLayer.zoomToShowLayer(marker, highlightMarker);
+        }
     }
 }
 
@@ -271,6 +391,11 @@ export function getMap() {
  */
 export function destroyMap() {
     if (map) {
+        // Clean up sighting marker
+        if (sightingMarker) {
+            map.removeLayer(sightingMarker);
+            sightingMarker = null;
+        }
         map.remove();
         map = null;
         routeLayer = null;

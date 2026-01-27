@@ -201,7 +201,14 @@ img {
     position: relative;
 }
 
+.unified-input-row {
+    display: flex;
+    align-items: stretch;
+    gap: var(--spacing-md);
+}
+
 .unified-input-wrapper {
+    flex: 1;
     display: flex;
     align-items: center;
     background: var(--color-bg);
@@ -247,6 +254,37 @@ img {
 .clear-button:hover {
     color: var(--color-text);
     background-color: var(--color-bg-tertiary);
+}
+
+/* Load Route Button */
+.load-route-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    background: var(--color-primary);
+    color: white;
+    font-weight: 500;
+    border-radius: var(--radius-lg);
+    white-space: nowrap;
+    transition: background-color var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.load-route-button:hover:not(:disabled) {
+    background: var(--color-primary-dark);
+}
+
+.load-route-button:disabled {
+    background: var(--color-border-dark);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.enter-hint {
+    opacity: 0.7;
+    display: flex;
+    align-items: center;
 }
 
 /* Input Dropdown */
@@ -444,14 +482,9 @@ img {
     flex-shrink: 0;
 }
 
-/* Mode Selector */
-.mode-selector {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-}
-
-.mode-button {
+/* Time Selector */
+.time-selector,
+.distance-selector {
     display: flex;
     align-items: center;
     padding: var(--spacing-sm) var(--spacing-md);
@@ -460,24 +493,13 @@ img {
     color: var(--color-text-secondary);
     background: var(--color-bg);
     border: 1px solid var(--color-border);
-    transition: all var(--transition-fast);
-}
-
-.mode-button.active {
-    color: var(--color-primary);
-    background: rgba(37, 99, 235, 0.05);
-    border-color: var(--color-primary);
-}
-
-.mode-button:hover:not(.active) {
-    background: var(--color-bg-secondary);
 }
 
 .time-select,
-.month-select {
+.distance-select {
     border: none;
     background: transparent;
-    color: inherit;
+    color: var(--color-primary);
     font-weight: 500;
     cursor: pointer;
     outline: none;
@@ -610,6 +632,80 @@ img {
     background: rgba(37, 99, 235, 0.02);
 }
 
+/* Expanded card state */
+.bird-card-header {
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.bird-card.expanded {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.bird-card-detail {
+    display: none;
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--color-border);
+    margin-top: var(--spacing-md);
+}
+
+.bird-card.expanded .bird-card-detail {
+    display: block;
+}
+
+.bird-card-detail-photo {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-md);
+    background: var(--color-bg-tertiary);
+}
+
+.bird-card-scientific {
+    font-style: italic;
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-sm);
+}
+
+.bird-card-detail-meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-md);
+}
+
+.bird-card-detail-meta > span {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.bird-card-detail-meta svg {
+    flex-shrink: 0;
+}
+
+.bird-card-detail-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    color: var(--color-primary);
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-bg-secondary);
+    border-radius: var(--radius-md);
+    transition: background-color var(--transition-fast);
+}
+
+.bird-card-detail-link:hover {
+    background: var(--color-bg-tertiary);
+    text-decoration: none;
+}
+
 .bird-card-photo {
     width: 48px;
     height: 48px;
@@ -706,11 +802,16 @@ img {
     overflow: hidden;
     z-index: 50;
     transform: translateY(100%);
-    transition: transform var(--transition-slow);
+    transition: transform var(--transition-slow), visibility 0s linear var(--transition-slow);
+    visibility: hidden;
+    pointer-events: none;
 }
 
-.bird-detail:not(.hidden) {
+.bird-detail.visible {
     transform: translateY(0);
+    visibility: visible;
+    pointer-events: auto;
+    transition: transform var(--transition-slow), visibility 0s linear 0s;
 }
 
 .close-detail {
@@ -750,6 +851,22 @@ img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+.detail-photo-credit {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+    color: white;
+    font-size: var(--font-size-xs);
+    text-align: right;
+}
+
+.detail-photo-container {
+    position: relative;
 }
 
 .detail-info {
@@ -808,6 +925,103 @@ img {
     text-decoration: none;
 }
 
+/* Sightings List */
+.sightings-section {
+    margin-top: var(--spacing-lg);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--color-border);
+}
+
+.sightings-header {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-sm);
+}
+
+.sightings-list {
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.sighting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-sm);
+    background: var(--color-bg-secondary);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.sighting-row:hover {
+    background: var(--color-bg-tertiary);
+}
+
+.sighting-row.current {
+    background: rgba(37, 99, 235, 0.08);
+    border: 1px solid var(--color-primary);
+}
+
+.sighting-current-label {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.sighting-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.sighting-date {
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+.sighting-location {
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sighting-count {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    margin-right: var(--spacing-sm);
+    white-space: nowrap;
+}
+
+.sighting-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    color: var(--color-text-muted);
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.sighting-link:hover {
+    color: var(--color-primary);
+    background: var(--color-bg-tertiary);
+    text-decoration: none;
+}
+
 /* ============================================
    Custom Map Markers
    ============================================ */
@@ -823,10 +1037,17 @@ img {
     box-shadow: var(--shadow-md);
     cursor: pointer;
     transition: transform var(--transition-fast);
+    overflow: hidden;
 }
 
 .bird-marker:hover {
     transform: scale(1.1);
+}
+
+.bird-marker.selected {
+    transform: scale(1.4);
+    z-index: 1000 !important;
+    box-shadow: 0 0 0 3px var(--color-primary), 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .bird-marker.rare {
@@ -842,6 +1063,7 @@ img {
     height: 32px;
     border-radius: 50%;
     object-fit: cover;
+    object-position: center;
 }
 
 .bird-marker-icon {
@@ -905,6 +1127,22 @@ img {
     white-space: nowrap;
 }
 
+/* Sighting highlight marker - pulsing animation */
+.bird-marker.sighting-highlight {
+    animation: sighting-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes sighting-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(37, 99, 235, 0);
+        transform: scale(1.05);
+    }
+}
+
 /* ============================================
    Responsive Styles - Tablet
    ============================================ */
@@ -912,10 +1150,6 @@ img {
     .header-controls {
         flex-wrap: wrap;
         gap: var(--spacing-sm);
-    }
-
-    .mode-selector {
-        flex-wrap: wrap;
     }
 
     .bird-sidebar {
@@ -997,11 +1231,8 @@ img {
         justify-content: space-between;
     }
 
-    .mode-selector {
-        gap: var(--spacing-xs);
-    }
-
-    .mode-button {
+    .time-selector,
+    .distance-selector {
         padding: var(--spacing-xs) var(--spacing-sm);
         font-size: var(--font-size-xs);
     }

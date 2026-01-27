@@ -4,12 +4,13 @@
  */
 
 import { getState, setState, subscribe } from '../utils/state.js';
-import { getBirdPhotoUrl, getEBirdSpeciesUrl, formatObservationDate, getLocationDescription } from '../services/birdService.js';
+import { getBirdPhotoUrl, fetchBirdPhoto, getEBirdSpeciesUrl, formatObservationDate, getLocationDescription } from '../services/birdService.js';
 
 // UI Elements
 let detailEl;
 let closeBtn;
 let photoEl;
+let photoCreditEl;
 let nameEl;
 let scientificEl;
 let rarityEl;
@@ -26,6 +27,7 @@ export function initBirdDetail() {
     detailEl = document.getElementById('bird-detail');
     closeBtn = document.getElementById('close-detail');
     photoEl = document.getElementById('detail-photo');
+    photoCreditEl = document.getElementById('detail-photo-credit');
     nameEl = document.getElementById('detail-name');
     scientificEl = document.getElementById('detail-scientific');
     rarityEl = document.getElementById('detail-rarity');
@@ -37,18 +39,9 @@ export function initBirdDetail() {
     // Bind close button
     closeBtn.addEventListener('click', closeDetail);
 
-    // Close on click outside (on map)
-    document.getElementById('map').addEventListener('click', (e) => {
-        // Only close if clicking directly on map, not on a marker
-        if (e.target.classList.contains('leaflet-container') ||
-            e.target.classList.contains('leaflet-tile')) {
-            closeDetail();
-        }
-    });
-
     // Close on escape key
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !detailEl.classList.contains('hidden')) {
+        if (e.key === 'Escape' && detailEl.classList.contains('visible')) {
             closeDetail();
         }
     });
@@ -59,116 +52,96 @@ export function initBirdDetail() {
 
 /**
  * Show bird detail panel
+ * NOTE: Bird details are now shown inline in expandable cards in BirdList.js
+ * This function is kept as a no-op for compatibility.
  * @param {object} bird - Selected bird data
  */
-function showBirdDetail(bird) {
-    if (!bird) {
+async function showBirdDetail(bird) {
+    // Bird details are now displayed inline in expandable cards
+    // This panel is no longer used - see BirdList.js for the new implementation
+    return;
+}
+
+/**
+ * Render the list of sightings for a bird
+ * @param {array} sightings - Array of sighting objects
+ */
+function renderSightingsList(sightings) {
+    // Remove existing sightings section if present
+    const existingSection = detailEl.querySelector('.sightings-section');
+    if (existingSection) {
+        existingSection.remove();
+    }
+
+    // Don't render if no sightings or only one sighting
+    if (!sightings || sightings.length <= 1) {
         return;
     }
 
-    const state = getState();
-    const isRecent = state.mode === 'recent';
+    // Create sightings section
+    const section = document.createElement('div');
+    section.className = 'sightings-section';
 
-    // Set photo
-    const photoUrl = getBirdPhotoUrl(bird.comName);
-    photoEl.src = photoUrl;
-    photoEl.alt = bird.comName;
+    const header = document.createElement('div');
+    header.className = 'sightings-header';
+    header.textContent = `${sightings.length} Sightings`;
+    section.appendChild(header);
 
-    // Set names
-    nameEl.textContent = bird.comName;
-    scientificEl.textContent = bird.sciName;
+    const list = document.createElement('div');
+    list.className = 'sightings-list';
 
-    // Set rarity
-    const rarityClass = bird.rarity || 'common';
-    const rarityLabel = getRarityLabel(bird.rarity);
-    rarityEl.className = `detail-rarity ${rarityClass}`;
-    rarityEl.innerHTML = `
-        <span class="rarity-dot ${rarityClass}"></span>
-        ${rarityLabel}
-    `;
+    for (const sighting of sightings) {
+        const row = document.createElement('div');
+        row.className = 'sighting-row';
 
-    // Set date/frequency info (different for recent vs expected modes)
-    if (isRecent) {
-        // Recent sightings mode - show date
-        if (bird.obsDt) {
-            dateEl.innerHTML = `
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="16" y1="2" x2="16" y2="6"></line>
-                    <line x1="8" y1="2" x2="8" y2="6"></line>
-                    <line x1="3" y1="10" x2="21" y2="10"></line>
-                </svg>
-                Seen: ${formatObservationDate(bird.obsDt)}
-            `;
-            dateEl.classList.remove('hidden');
-        } else {
-            dateEl.classList.add('hidden');
+        const info = document.createElement('div');
+        info.className = 'sighting-info';
+
+        const date = document.createElement('span');
+        date.className = 'sighting-date';
+        date.textContent = formatObservationDate(sighting.obsDt);
+        info.appendChild(date);
+
+        if (sighting.locName) {
+            const location = document.createElement('span');
+            location.className = 'sighting-location';
+            location.textContent = sighting.locName;
+            info.appendChild(location);
         }
 
-        // Show observers
-        if (bird.numObservers) {
-            observersEl.innerHTML = `
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-                Reported by ${bird.numObservers} observer${bird.numObservers > 1 ? 's' : ''}
-            `;
-            observersEl.classList.remove('hidden');
-        } else {
-            observersEl.classList.add('hidden');
-        }
-    } else {
-        // Expected birds mode - show frequency
-        if (bird.frequency) {
-            dateEl.innerHTML = `
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 3v18h18"></path>
-                    <path d="M18 9l-5 5-4-4-3 3"></path>
-                </svg>
-                ${bird.frequency} in ${bird.expectedIn || 'this month'}
-            `;
-            dateEl.classList.remove('hidden');
-        } else {
-            dateEl.classList.add('hidden');
+        row.appendChild(info);
+
+        if (sighting.howMany && sighting.howMany > 1) {
+            const count = document.createElement('span');
+            count.className = 'sighting-count';
+            count.textContent = `×${sighting.howMany}`;
+            row.appendChild(count);
         }
 
-        // Show habitat instead of observers
-        if (bird.habitat) {
-            observersEl.innerHTML = `
+        if (sighting.subId) {
+            const link = document.createElement('a');
+            link.className = 'sighting-link';
+            link.href = `https://ebird.org/checklist/${sighting.subId}`;
+            link.target = '_blank';
+            link.rel = 'noopener';
+            link.title = 'View checklist on eBird';
+            link.innerHTML = `
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 22c-4-4-8-7-8-12a8 8 0 1116 0c0 5-4 8-8 12z"></path>
+                    <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"></path>
                 </svg>
-                Look near: ${bird.habitat}
             `;
-            observersEl.classList.remove('hidden');
-        } else {
-            observersEl.classList.add('hidden');
+            row.appendChild(link);
         }
+
+        list.appendChild(row);
     }
 
-    // Set location along route
-    const route = state.route;
-    const coordinates = state.routeGeoJSON;
-    if (coordinates && route) {
-        const locDesc = getLocationDescription(bird, coordinates, route.distance);
-        locationEl.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"></path>
-                <circle cx="12" cy="10" r="3"></circle>
-            </svg>
-            ${locDesc}
-        `;
-        locationEl.classList.remove('hidden');
-    } else {
-        locationEl.classList.add('hidden');
-    }
+    section.appendChild(list);
 
-    // Set eBird link
-    linkEl.href = getEBirdSpeciesUrl(bird.speciesCode);
-
-    // Show panel with animation
-    detailEl.classList.remove('hidden');
+    // Insert after detail-meta
+    const detailInfo = detailEl.querySelector('.detail-info');
+    const detailLink = detailInfo.querySelector('.detail-link');
+    detailInfo.insertBefore(section, detailLink);
 }
 
 /**
@@ -177,7 +150,7 @@ function showBirdDetail(bird) {
 function getRarityLabel(rarity) {
     switch (rarity) {
         case 'rare':
-            return 'Rare in this area';
+            return 'Notable in this area';
         case 'uncommon':
             return 'Uncommon in this area';
         case 'common':
@@ -187,9 +160,35 @@ function getRarityLabel(rarity) {
 }
 
 /**
+ * Load bird photo from Macaulay Library
+ * @param {string} speciesCode - eBird species code
+ * @param {string} comName - Common name for fallback search
+ */
+async function loadBirdPhoto(speciesCode, comName = null) {
+    try {
+        const photoData = await fetchBirdPhoto(speciesCode, comName);
+
+        if (photoData && photoData.large) {
+            photoEl.src = photoData.large;
+
+            // Show photo credit if available
+            if (photoCreditEl && photoData.credit) {
+                photoCreditEl.textContent = `Photo: ${photoData.credit}`;
+                photoCreditEl.classList.remove('hidden');
+            } else if (photoCreditEl) {
+                photoCreditEl.classList.add('hidden');
+            }
+        }
+    } catch (error) {
+        console.warn('Failed to load bird photo:', error);
+    }
+}
+
+/**
  * Close the detail panel
  */
 export function closeDetail() {
+    detailEl.classList.remove('visible');
     detailEl.classList.add('hidden');
     setState({ selectedBird: null });
 }
@@ -198,5 +197,5 @@ export function closeDetail() {
  * Check if detail panel is open
  */
 export function isDetailOpen() {
-    return !detailEl.classList.contains('hidden');
+    return detailEl.classList.contains('visible');
 }

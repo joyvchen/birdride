@@ -24,8 +24,13 @@
 export const config = {
     // eBird API - Get your key at https://ebird.org/api/keygen
     ebird: {
-        apiKey: '', // Paste your eBird API key here
+        apiKey: 'dbvvrg1t1p62', // Your eBird API key
         baseUrl: 'https://api.ebird.org/v2',
+    },
+
+    // Macaulay Library API (for bird photos - no key required)
+    macaulayLibrary: {
+        baseUrl: 'https://search.macaulaylibrary.org/api/v1',
     },
 
     // RideWithGPS API - Get access at https://ridewithgps.com/api
@@ -35,16 +40,25 @@ export const config = {
         baseUrl: 'https://ridewithgps.com',
     },
 
+    // CORS Proxy for cross-origin requests
+    corsProxy: 'https://corsproxy.io/?',
+
     // App settings
     app: {
         // Use mock data if API keys aren't configured
-        useMockData: true, // Set to false when you add API keys
+        useMockData: false, // Using real eBird data
 
         // Default search radius for bird sightings (in kilometers)
         searchRadiusKm: 2.5,
 
         // Maximum points to sample along a route for bird queries
         maxSamplePoints: 15,
+
+        // Number of popular routes to show
+        popularRoutesLimit: 10,
+
+        // Default time window for recent sightings (days)
+        defaultTimeWindow: 14,
     },
 };
 

@@ -1,16 +1,14 @@
 /**
  * BirdRide - Filter Controls Component
- * Handles mode selection (Recent/Expected) and rarity filtering (Notable/All)
+ * Handles time window, distance, and rarity filtering
  */
 
 import { getState, setState, subscribe, applyFilters } from '../utils/state.js';
-import { fetchRecentBirds, fetchExpectedBirds } from '../services/birdService.js';
+import { fetchRecentBirds } from '../services/birdService.js';
 
 // UI Elements
-let modeRecentBtn;
-let modeExpectedBtn;
 let timeWindowSelect;
-let monthSelect;
+let distanceFilterSelect;
 let filterNotableBtn;
 let filterAllBtn;
 let mapLoadingEl;
@@ -20,79 +18,40 @@ let mapLoadingEl;
  */
 export function initFilterControls() {
     // Get DOM elements
-    modeRecentBtn = document.getElementById('mode-recent');
-    modeExpectedBtn = document.getElementById('mode-expected');
     timeWindowSelect = document.getElementById('time-window');
-    monthSelect = document.getElementById('month-select');
+    distanceFilterSelect = document.getElementById('distance-filter');
     filterNotableBtn = document.getElementById('filter-notable');
     filterAllBtn = document.getElementById('filter-all');
     mapLoadingEl = document.getElementById('map-loading');
 
-    // Set current month as default for month selector
-    const currentMonth = new Date().getMonth() + 1;
-    monthSelect.value = currentMonth.toString();
-    setState({ selectedMonth: currentMonth });
-
-    // Bind mode button handlers
-    modeRecentBtn.addEventListener('click', () => setMode('recent'));
-    modeExpectedBtn.addEventListener('click', () => setMode('expected'));
-
-    // Bind select handlers (these change params within a mode)
+    // Bind select handlers
     timeWindowSelect.addEventListener('change', handleTimeWindowChange);
-    monthSelect.addEventListener('change', handleMonthChange);
-
-    // Prevent clicks on selects from triggering mode button
-    timeWindowSelect.addEventListener('click', (e) => e.stopPropagation());
-    monthSelect.addEventListener('click', (e) => e.stopPropagation());
+    distanceFilterSelect.addEventListener('change', handleDistanceFilterChange);
 
     // Bind rarity filter handlers
     filterNotableBtn.addEventListener('click', () => setRarityFilter('notable'));
     filterAllBtn.addEventListener('click', () => setRarityFilter('all'));
 
     // Subscribe to state changes to update UI
-    subscribe('mode', updateModeUI);
     subscribe('rarityFilter', updateFilterUI);
 }
 
 /**
- * Set the viewing mode (recent sightings or expected birds)
- */
-async function setMode(mode) {
-    const state = getState();
-
-    // Don't reload if already in this mode
-    if (state.mode === mode) {
-        return;
-    }
-
-    setState({ mode });
-    await loadBirdData();
-}
-
-/**
- * Handle time window change (for recent mode)
+ * Handle time window change
  */
 async function handleTimeWindowChange(e) {
     const days = parseInt(e.target.value, 10);
     setState({ timeWindow: days });
-
-    // Only reload if we're in recent mode
-    if (getState().mode === 'recent') {
-        await loadBirdData();
-    }
+    await loadBirdData();
 }
 
 /**
- * Handle month change (for expected mode)
+ * Handle distance filter change
  */
-async function handleMonthChange(e) {
-    const month = parseInt(e.target.value, 10);
-    setState({ selectedMonth: month });
-
-    // Only reload if we're in expected mode
-    if (getState().mode === 'expected') {
-        await loadBirdData();
-    }
+function handleDistanceFilterChange(e) {
+    const distance = parseFloat(e.target.value);
+    setState({ distanceFilter: distance });
+    applyFilters();
 }
 
 /**
@@ -104,7 +63,7 @@ function setRarityFilter(filter) {
 }
 
 /**
- * Load bird data based on current mode and settings
+ * Load bird data based on current settings
  */
 export async function loadBirdData() {
     const state = getState();
@@ -119,15 +78,7 @@ export async function loadBirdData() {
     showLoading();
 
     try {
-        let birds;
-
-        if (state.mode === 'recent') {
-            // Fetch recent sightings
-            birds = await fetchRecentBirds(coordinates, state.timeWindow);
-        } else {
-            // Fetch expected birds for the selected month
-            birds = await fetchExpectedBirds(coordinates, state.selectedMonth);
-        }
+        const birds = await fetchRecentBirds(coordinates, state.timeWindow);
 
         // Update state with bird data
         setState({ birds });
@@ -140,19 +91,6 @@ export async function loadBirdData() {
         setState({ birds: [], filteredBirds: [] });
     } finally {
         hideLoading();
-    }
-}
-
-/**
- * Update mode button UI
- */
-function updateModeUI(mode) {
-    if (mode === 'recent') {
-        modeRecentBtn.classList.add('active');
-        modeExpectedBtn.classList.remove('active');
-    } else {
-        modeRecentBtn.classList.remove('active');
-        modeExpectedBtn.classList.add('active');
     }
 }
 
@@ -188,13 +126,12 @@ function hideLoading() {
  */
 export function resetFilters() {
     setState({
-        mode: 'recent',
         timeWindow: 14,
-        selectedMonth: new Date().getMonth() + 1,
-        rarityFilter: 'notable',
+        distanceFilter: 0.25,
+        rarityFilter: 'all',
     });
 
     // Reset UI
     timeWindowSelect.value = '14';
-    monthSelect.value = (new Date().getMonth() + 1).toString();
+    distanceFilterSelect.value = '0.25';
 }

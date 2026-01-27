@@ -120,16 +120,22 @@ Once it's on GitHub, you can host it free on GitHub Pages:
 - **Cost**: Free
 - **What it provides**: Recent bird sightings, species info, locations
 
+### Macaulay Library (Bird Photos)
+- **Website**: https://macaulaylibrary.org
+- **Cost**: Free (no API key required)
+- **What it provides**: High-quality bird photos with photographer credits
+- **Note**: Part of eBird/Cornell Lab of Ornithology
+
 ### RideWithGPS (Route Data)
 - **Website**: https://ridewithgps.com
 - **API Docs**: https://ridewithgps.com/api
 - **Cost**: Free tier available
 - **What it provides**: Cycling routes, distances, elevation
 
-Currently, the app uses sample route data. Full RideWithGPS integration would require:
+The app fetches public RideWithGPS routes through a CORS proxy. For full integration:
 1. Apply for API access at ridewithgps.com/api
 2. Add your credentials to `js/config.js`
-3. Update `js/services/routeService.js` to make real API calls
+3. You can paste any public RideWithGPS route URL directly!
 
 ---
 
