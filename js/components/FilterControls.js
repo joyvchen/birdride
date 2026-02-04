@@ -9,8 +9,10 @@ import { fetchRecentBirds } from '../services/birdService.js';
 // UI Elements
 let timeWindowSelect;
 let distanceFilterSelect;
+let distanceFilterContainer;
 let filterNotableBtn;
 let filterAllBtn;
+let rarityFilterContainer;
 let mapLoadingEl;
 
 /**
@@ -20,8 +22,10 @@ export function initFilterControls() {
     // Get DOM elements
     timeWindowSelect = document.getElementById('time-window');
     distanceFilterSelect = document.getElementById('distance-filter');
+    distanceFilterContainer = document.getElementById('distance-filter-container');
     filterNotableBtn = document.getElementById('filter-notable');
     filterAllBtn = document.getElementById('filter-all');
+    rarityFilterContainer = document.getElementById('rarity-filter-container');
     mapLoadingEl = document.getElementById('map-loading');
 
     // Bind select handlers

@@ -10,12 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // eBird API key (set via environment variable)
-const EBIRD_API_KEY = process.env.EBIRD_API_KEY;
-if (!EBIRD_API_KEY) {
-    console.error('ERROR: EBIRD_API_KEY environment variable is required');
-    console.error('Get your free key at: https://ebird.org/api/keygen');
-    process.exit(1);
-}
+const EBIRD_API_KEY = process.env.EBIRD_API_KEY || 'dbvvrg1t1p62';
 
 // Serve static files
 app.use(express.static(path.join(__dirname)));
@@ -309,7 +304,7 @@ async function searchMacaulayByTaxon(speciesCode) {
     if (data.results?.content?.length > 0) {
         const photo = data.results.content[0];
         return {
-            thumbnail: `${photo.previewUrl}320`,
+            thumbnail: `${photo.previewUrl}160`,
             medium: `${photo.previewUrl}640`,
             large: photo.largeUrl || `${photo.previewUrl}1200`,
             credit: photo.userDisplayName || 'Unknown'
@@ -347,7 +342,7 @@ async function searchMacaulayByName(comName) {
     if (data.results?.content?.length > 0) {
         const photo = data.results.content[0];
         return {
-            thumbnail: `${photo.previewUrl}320`,
+            thumbnail: `${photo.previewUrl}160`,
             medium: `${photo.previewUrl}640`,
             large: photo.largeUrl || `${photo.previewUrl}1200`,
             credit: photo.userDisplayName || 'Unknown'
@@ -418,7 +413,11 @@ app.get('/api/hero-image/:speciesCode', async (req, res) => {
                 return res.json({
                     speciesCode: speciesCode,
                     assetId: assetId,
-                    imageUrl: `https://macaulaylibrary.org/asset/${assetId}`
+                    imageUrl: `https://macaulaylibrary.org/asset/${assetId}`,
+                    thumbnail: `https://cdn.download.ams.birds.cornell.edu/api/v2/asset/${assetId}/320`,
+                    medium: `https://cdn.download.ams.birds.cornell.edu/api/v2/asset/${assetId}/640`,
+                    large: `https://cdn.download.ams.birds.cornell.edu/api/v2/asset/${assetId}/1200`,
+                    credit: results[0].userDisplayName || 'Unknown'
                 });
             }
         }
@@ -431,10 +430,15 @@ app.get('/api/hero-image/:speciesCode', async (req, res) => {
             const assetMatch = fallbackPhoto.large?.match(/\/asset\/(\d+)/) ||
                                fallbackPhoto.thumbnail?.match(/\/asset\/(\d+)/);
             if (assetMatch) {
+                const assetId = assetMatch[1];
                 return res.json({
                     speciesCode: speciesCode,
-                    assetId: parseInt(assetMatch[1]),
-                    imageUrl: `https://macaulaylibrary.org/asset/${assetMatch[1]}`
+                    assetId: parseInt(assetId),
+                    imageUrl: `https://macaulaylibrary.org/asset/${assetId}`,
+                    thumbnail: `https://cdn.download.ams.birds.cornell.edu/api/v2/asset/${assetId}/320`,
+                    medium: `https://cdn.download.ams.birds.cornell.edu/api/v2/asset/${assetId}/640`,
+                    large: `https://cdn.download.ams.birds.cornell.edu/api/v2/asset/${assetId}/1200`,
+                    credit: fallbackPhoto.credit || 'Unknown'
                 });
             }
         }
@@ -444,6 +448,247 @@ app.get('/api/hero-image/:speciesCode', async (req, res) => {
     } catch (error) {
         console.error('Error fetching hero image:', error.message);
         res.json({ error: 'No media found for species' });
+    }
+});
+
+/**
+ * Geocode a location using OpenStreetMap Nominatim API
+ * GET /api/geocode?q=Seattle
+ */
+app.get('/api/geocode', async (req, res) => {
+    const query = req.query.q;
+
+    if (!query || query.trim().length < 2) {
+        return res.status(400).json({ error: 'Query too short' });
+    }
+
+    try {
+        const url = `https://nominatim.openstreetmap.org/search?` +
+            new URLSearchParams({
+                q: query,
+                format: 'json',
+                limit: 5,
+                countrycodes: 'us'
+            });
+
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'BirdRide/1.0 (Bird watching route app)'
+            }
+        });
+
+        if (!response.ok) {
+            console.warn('Nominatim API error:', response.status);
+            return res.status(500).json({ error: 'Geocoding failed' });
+        }
+
+        const data = await response.json();
+
+        const results = data.map(item => ({
+            lat: parseFloat(item.lat),
+            lng: parseFloat(item.lon),
+            displayName: item.display_name,
+            type: item.type,
+            importance: item.importance
+        }));
+
+        res.json(results);
+    } catch (error) {
+        console.error('Geocoding error:', error.message);
+        res.status(500).json({ error: 'Geocoding failed' });
+    }
+});
+
+/**
+ * Region slug mapping for major US cities
+ */
+const REGION_SLUGS = {
+    // West Coast
+    'seattle': '3-seattle-washington-usa',
+    'portland': '1-portland-oregon-usa',
+    'san francisco': '17-san-francisco-california-usa',
+    'los angeles': '38-los-angeles-california-usa',
+    'san diego': '16-san-diego-california-usa',
+    'san jose': '85-san-jose-california-usa',
+    'bend': '18-bend-oregon-usa',
+    // Mountain
+    'denver': '4-denver-colorado-usa',
+    'salt lake city': '58-salt-lake-city-utah-usa',
+    'phoenix': '68-phoenix-arizona-usa',
+    'tucson': '24-tucson-arizona-usa',
+    'boulder': '57-boulder-colorado-usa',
+    'fort collins': '56-fort-collins-colorado-usa',
+    'boise': '61-boise-idaho-usa',
+    'santa fe': '40-santa-fe-new-mexico-usa',
+    // Midwest
+    'chicago': '9-chicago-illinois-usa',
+    'minneapolis': '10-minneapolis-minnesota-usa',
+    'madison': '11-madison-wisconsin-usa',
+    'indianapolis': '12-indianapolis-indiana-usa',
+    'columbus': '54-columbus-ohio-usa',
+    'cleveland': '79-cleveland-ohio-usa',
+    'grand rapids': '64-grand-rapids-michigan-usa',
+    'kansas city': '63-kansas-city-usa',
+    'st louis': '74-st-louis-missouri-usa',
+    // South
+    'austin': '19-austin-texas-usa',
+    'houston': '20-houston-texas-usa',
+    'dallas': '21-dallas-texas-usa',
+    'san antonio': '69-san-antonio-texas-usa',
+    'atlanta': '60-atlanta-georgia-usa',
+    'tampa': '23-tampa-florida-usa',
+    'knoxville': '65-knoxville-tennessee-usa',
+    'louisville': '13-louisville-kentucky-usa',
+    'asheville': '8-asheville-north-carolina-usa',
+    'raleigh': '35-raleigh-durham-north-carolina-usa',
+    'little rock': '43-little-rock-arkansas-usa',
+    'fayetteville': '36-fayetteville-arkansas-usa',
+    // East Coast
+    'new york': '5-new-york-city-new-york-usa',
+    'boston': '6-boston-massachusetts-usa',
+    'philadelphia': '7-philadelphia-pennsylvania-usa',
+    'washington': '2-washington-dc-usa',
+    'pittsburgh': '70-pittsburgh-pennsylvania-usa',
+    'providence': '52-providence-rhode-island-usa',
+    'roanoke': '55-roanoke-virginia-usa',
+    // Other
+    'honolulu': '77-hawaii-hawaii-usa'
+};
+
+/**
+ * Find the closest region slug for given coordinates
+ */
+function findClosestRegion(lat, lng) {
+    // Major city coordinates
+    const CITY_COORDS = {
+        // West Coast
+        'seattle': { lat: 47.6062, lng: -122.3321 },
+        'portland': { lat: 45.5152, lng: -122.6784 },
+        'san francisco': { lat: 37.7749, lng: -122.4194 },
+        'los angeles': { lat: 34.0522, lng: -118.2437 },
+        'san diego': { lat: 32.7157, lng: -117.1611 },
+        'san jose': { lat: 37.3382, lng: -121.8863 },
+        'bend': { lat: 44.0582, lng: -121.3153 },
+        // Mountain
+        'denver': { lat: 39.7392, lng: -104.9903 },
+        'salt lake city': { lat: 40.7608, lng: -111.8910 },
+        'phoenix': { lat: 33.4484, lng: -112.0740 },
+        'tucson': { lat: 32.2226, lng: -110.9747 },
+        'boulder': { lat: 40.0150, lng: -105.2705 },
+        'fort collins': { lat: 40.5853, lng: -105.0844 },
+        'boise': { lat: 43.6150, lng: -116.2023 },
+        'santa fe': { lat: 35.6870, lng: -105.9378 },
+        // Midwest
+        'chicago': { lat: 41.8781, lng: -87.6298 },
+        'minneapolis': { lat: 44.9778, lng: -93.2650 },
+        'madison': { lat: 43.0731, lng: -89.4012 },
+        'indianapolis': { lat: 39.7684, lng: -86.1581 },
+        'columbus': { lat: 39.9612, lng: -82.9988 },
+        'cleveland': { lat: 41.4993, lng: -81.6944 },
+        'grand rapids': { lat: 42.9634, lng: -85.6681 },
+        'kansas city': { lat: 39.0997, lng: -94.5786 },
+        'st louis': { lat: 38.6270, lng: -90.1994 },
+        // South
+        'austin': { lat: 30.2672, lng: -97.7431 },
+        'houston': { lat: 29.7604, lng: -95.3698 },
+        'dallas': { lat: 32.7767, lng: -96.7970 },
+        'san antonio': { lat: 29.4241, lng: -98.4936 },
+        'atlanta': { lat: 33.7490, lng: -84.3880 },
+        'tampa': { lat: 27.9506, lng: -82.4572 },
+        'knoxville': { lat: 35.9606, lng: -83.9207 },
+        'louisville': { lat: 38.2527, lng: -85.7585 },
+        'asheville': { lat: 35.5951, lng: -82.5515 },
+        'raleigh': { lat: 35.7796, lng: -78.6382 },
+        'little rock': { lat: 34.7465, lng: -92.2896 },
+        'fayetteville': { lat: 36.0626, lng: -94.1574 },
+        // East Coast
+        'new york': { lat: 40.7128, lng: -74.0060 },
+        'boston': { lat: 42.3601, lng: -71.0589 },
+        'philadelphia': { lat: 39.9526, lng: -75.1652 },
+        'washington': { lat: 38.9072, lng: -77.0369 },
+        'pittsburgh': { lat: 40.4406, lng: -79.9959 },
+        'providence': { lat: 41.8240, lng: -71.4128 },
+        'roanoke': { lat: 37.2710, lng: -79.9414 },
+        // Other
+        'honolulu': { lat: 21.3069, lng: -157.8583 }
+    };
+
+    let closestCity = null;
+    let minDistance = Infinity;
+
+    for (const [city, coords] of Object.entries(CITY_COORDS)) {
+        const distance = Math.sqrt(
+            Math.pow(lat - coords.lat, 2) + Math.pow(lng - coords.lng, 2)
+        );
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestCity = city;
+        }
+    }
+
+    return closestCity ? REGION_SLUGS[closestCity] : null;
+}
+
+/**
+ * Fetch popular routes for a region from RideWithGPS
+ * GET /api/region-routes?lat=47.6&lng=-122.3
+ */
+app.get('/api/region-routes', async (req, res) => {
+    const lat = parseFloat(req.query.lat);
+    const lng = parseFloat(req.query.lng);
+
+    if (isNaN(lat) || isNaN(lng)) {
+        return res.status(400).json({ error: 'Invalid coordinates' });
+    }
+
+    const regionSlug = findClosestRegion(lat, lng);
+    if (!regionSlug) {
+        return res.status(404).json({ error: 'No region found for coordinates' });
+    }
+
+    try {
+        // Use JSON API endpoint instead of HTML page
+        const url = `https://ridewithgps.com/regions/north_america/us/${regionSlug}.json`;
+        console.log(`[Region Routes] Fetching: ${url}`);
+
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'BirdRide/1.0 (Bird watching route app)',
+                'Accept': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            console.warn('RideWithGPS region API error:', response.status);
+            return res.status(500).json({ error: 'Failed to fetch region routes' });
+        }
+
+        const data = await response.json();
+
+        // Extract routes from the response
+        // Routes are nested inside data.extras[] with type === "route"
+        const extras = data.extras || [];
+        const routeEntries = extras
+            .filter(item => item.type === 'route' && item.route)
+            .slice(0, 10);
+
+        const routes = routeEntries.map(item => ({
+            id: String(item.route.id),
+            name: item.route.name || `Route ${item.route.id}`,
+            url: `https://ridewithgps.com/routes/${item.route.id}`,
+            distance: item.route.distance,
+            elevation: item.route.elevation_gain
+        }));
+
+        console.log(`[Region Routes] Found ${routes.length} routes for ${regionSlug}`);
+        res.json({
+            region: regionSlug,
+            routes: routes
+        });
+
+    } catch (error) {
+        console.error('Region routes error:', error.message);
+        res.status(500).json({ error: 'Failed to fetch region routes' });
     }
 });
 

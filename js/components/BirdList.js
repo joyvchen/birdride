@@ -35,6 +35,9 @@ export function initBirdList() {
     // Set up keyboard handlers
     setupKeyboardHandlers();
 
+    // Set up photo modal
+    setupPhotoModal();
+
     // Subscribe to state changes
     subscribe('filteredBirds', renderBirdList);
     subscribe('selectedBird', highlightSelectedCard);
@@ -57,42 +60,225 @@ function setupKeyboardHandlers() {
 }
 
 /**
- * Set up mobile bottom sheet behavior
+ * Set up photo modal behavior
+ */
+function setupPhotoModal() {
+    const modal = document.getElementById('photo-modal');
+    if (!modal) return;
+
+    const backdrop = modal.querySelector('.photo-modal-backdrop');
+    const closeBtn = modal.querySelector('.photo-modal-close');
+
+    const closeModal = () => modal.classList.add('hidden');
+
+    backdrop.addEventListener('click', closeModal);
+    closeBtn.addEventListener('click', closeModal);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+            closeModal();
+        }
+    });
+}
+
+/**
+ * Open the photo modal with a large image
+ */
+async function openPhotoModal(speciesCode, comName) {
+    const modal = document.getElementById('photo-modal');
+    if (!modal) return;
+
+    const img = modal.querySelector('.photo-modal-img');
+    const credit = modal.querySelector('.photo-modal-credit');
+
+    // Show modal with current thumbnail while large loads
+    modal.classList.remove('hidden');
+
+    try {
+        const photoData = await fetchBirdPhoto(speciesCode, comName);
+        if (photoData) {
+            img.src = photoData.large || photoData.medium || photoData.thumbnail;
+            img.alt = comName || speciesCode;
+            if (photoData.assetId) {
+                credit.innerHTML = `Photo: ${photoData.credit} · <a href="https://macaulaylibrary.org/asset/${photoData.assetId}" target="_blank" rel="noopener">View on Macaulay Library</a>`;
+            } else {
+                credit.textContent = photoData.credit ? `Photo: ${photoData.credit}` : '';
+            }
+        }
+    } catch (error) {
+        console.warn('Failed to load modal photo:', error);
+    }
+}
+
+/**
+ * Set up mobile bottom sheet behavior with 3 states: collapsed, peek, expanded
  */
 function setupBottomSheet() {
     const header = sidebarEl.querySelector('.sidebar-header');
+    const handle = sidebarEl.querySelector('.sheet-handle');
 
-    // Toggle expanded state on header click (mobile)
-    header.addEventListener('click', (e) => {
-        if (window.innerWidth <= 768) {
-            sidebarEl.classList.toggle('expanded');
-            setState({ sidebarExpanded: sidebarEl.classList.contains('expanded') });
+    // Sheet states
+    const STATES = { COLLAPSED: 0, PEEK: 1, EXPANDED: 2 };
+    let currentState = STATES.COLLAPSED;
+
+    /**
+     * Ensure the bottom sheet is visible on mobile
+     */
+    function ensureMobileVisibility() {
+        if (window.innerWidth <= 450) {
+            // Small mobile: default to peek state for better discoverability
+            sidebarEl.classList.remove('expanded', 'dragging');
+            sidebarEl.classList.add('peek');
+            sidebarEl.style.transform = '';
+            currentState = STATES.PEEK;
+        } else if (window.innerWidth <= 768) {
+            // Regular mobile: collapsed state
+            sidebarEl.classList.remove('peek', 'expanded', 'dragging');
+            sidebarEl.style.transform = '';
+            currentState = STATES.COLLAPSED;
+        }
+    }
+
+    // Call on initialization
+    ensureMobileVisibility();
+
+    // Handle resize events
+    window.addEventListener('resize', () => {
+        if (window.innerWidth > 768) {
+            sidebarEl.classList.remove('peek', 'expanded', 'dragging');
+            sidebarEl.style.transform = '';
+        } else {
+            ensureMobileVisibility();
         }
     });
 
-    // Handle touch gestures for swipe
+    // Touch tracking
     let startY = 0;
+    let startTime = 0;
     let currentY = 0;
+    let isDragging = false;
+    let initialTransform = 0;
 
-    header.addEventListener('touchstart', (e) => {
+    /**
+     * Set sheet state with CSS classes
+     */
+    function setSheetState(state) {
+        sidebarEl.classList.remove('peek', 'expanded', 'dragging');
+        sidebarEl.style.transform = ''; // Always clear inline transform
+        if (state === STATES.PEEK) {
+            sidebarEl.classList.add('peek');
+        } else if (state === STATES.EXPANDED) {
+            sidebarEl.classList.add('expanded');
+        }
+        currentState = state;
+        setState({ sidebarExpanded: state === STATES.EXPANDED });
+    }
+
+    /**
+     * Get the Y position for a given state
+     */
+    function getStatePosition(state) {
+        const height = sidebarEl.offsetHeight;
+        switch (state) {
+            case STATES.COLLAPSED: return height - 80;
+            case STATES.PEEK: return height - 200;
+            case STATES.EXPANDED: return 0;
+            default: return height - 80;
+        }
+    }
+
+    /**
+     * Handle touch start
+     */
+    function handleTouchStart(e) {
+        if (window.innerWidth > 768) return;
+
         startY = e.touches[0].clientY;
-    }, { passive: true });
+        startTime = Date.now();
+        currentY = startY;
+        isDragging = true;
+        initialTransform = getStatePosition(currentState);
 
-    header.addEventListener('touchmove', (e) => {
+        sidebarEl.classList.add('dragging');
+    }
+
+    /**
+     * Handle touch move
+     */
+    function handleTouchMove(e) {
+        if (!isDragging || window.innerWidth > 768) return;
+
         currentY = e.touches[0].clientY;
-    }, { passive: true });
-
-    header.addEventListener('touchend', () => {
         const deltaY = currentY - startY;
-        if (Math.abs(deltaY) > 50) {
+        const newTransform = Math.max(0, Math.min(initialTransform + deltaY, sidebarEl.offsetHeight - 80));
+
+        sidebarEl.style.transform = `translateY(calc(100% - ${sidebarEl.offsetHeight - newTransform}px))`;
+    }
+
+    /**
+     * Handle touch end
+     */
+    function handleTouchEnd() {
+        if (!isDragging || window.innerWidth > 768) return;
+
+        isDragging = false;
+        sidebarEl.classList.remove('dragging');
+        sidebarEl.style.transform = '';
+
+        const deltaY = currentY - startY;
+        const deltaTime = Date.now() - startTime;
+        const velocity = Math.abs(deltaY) / deltaTime;
+
+        // Fast swipe detection
+        const isFastSwipe = velocity > 0.5;
+
+        let newState = currentState;
+
+        if (isFastSwipe) {
+            // Fast swipe - move in direction of swipe
             if (deltaY < 0) {
-                // Swipe up - expand
-                sidebarEl.classList.add('expanded');
+                // Swipe up
+                newState = currentState < STATES.EXPANDED ? currentState + 1 : STATES.EXPANDED;
             } else {
-                // Swipe down - collapse
-                sidebarEl.classList.remove('expanded');
+                // Swipe down
+                newState = currentState > STATES.COLLAPSED ? currentState - 1 : STATES.COLLAPSED;
             }
-            setState({ sidebarExpanded: sidebarEl.classList.contains('expanded') });
+        } else if (Math.abs(deltaY) > 50) {
+            // Slow drag with significant movement - snap to nearest state
+            const currentPos = initialTransform + deltaY;
+            const collapsedPos = getStatePosition(STATES.COLLAPSED);
+            const peekPos = getStatePosition(STATES.PEEK);
+            const expandedPos = getStatePosition(STATES.EXPANDED);
+
+            const distances = [
+                { state: STATES.COLLAPSED, dist: Math.abs(currentPos - collapsedPos) },
+                { state: STATES.PEEK, dist: Math.abs(currentPos - peekPos) },
+                { state: STATES.EXPANDED, dist: Math.abs(currentPos - expandedPos) }
+            ];
+
+            distances.sort((a, b) => a.dist - b.dist);
+            newState = distances[0].state;
+        }
+
+        setSheetState(newState);
+    }
+
+    // Only set up touch events if we're on mobile or might resize to mobile
+    // Bind touch events to header and handle
+    [header, handle].forEach(el => {
+        if (el) {
+            el.addEventListener('touchstart', handleTouchStart, { passive: true });
+            el.addEventListener('touchmove', handleTouchMove, { passive: true });
+            el.addEventListener('touchend', handleTouchEnd);
+        }
+    });
+
+    // Click on header cycles through states
+    header.addEventListener('click', (e) => {
+        if (window.innerWidth > 768) return;
+        // Only trigger if not a drag
+        if (Math.abs(currentY - startY) < 10) {
+            const nextState = (currentState + 1) % 3;
+            setSheetState(nextState);
         }
     });
 }
@@ -149,6 +335,20 @@ function renderBirdList(birds) {
         });
     });
 
+    // Bind photo modal click handlers on detail photos
+    listEl.querySelectorAll('.bird-card-detail-photo').forEach(img => {
+        img.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const card = img.closest('.bird-card');
+            const speciesCode = card?.dataset.speciesCode;
+            const index = parseInt(card?.dataset.index);
+            const bird = birds[index];
+            if (speciesCode && bird) {
+                openPhotoModal(speciesCode, bird.comName);
+            }
+        });
+    });
+
     // Load bird photos asynchronously
     loadBirdPhotos(birds);
 }
@@ -157,19 +357,18 @@ function renderBirdList(birds) {
  * Load bird photos asynchronously for all birds in the list
  */
 async function loadBirdPhotos(birds) {
-    for (const bird of birds) {
-        try {
-            const photoData = await fetchBirdPhoto(bird.speciesCode, bird.comName);
-            if (photoData && photoData.thumbnail) {
-                // Update the photo in the list
-                const img = listEl.querySelector(`[data-species="${bird.speciesCode}"]`);
-                if (img) {
-                    img.src = photoData.thumbnail;
+    const BATCH_SIZE = 6;
+    for (let i = 0; i < birds.length; i += BATCH_SIZE) {
+        const batch = birds.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(async (bird) => {
+            try {
+                const photoData = await fetchBirdPhoto(bird.speciesCode, bird.comName);
+                if (photoData && photoData.thumbnail) {
+                    const img = listEl.querySelector(`[data-species="${bird.speciesCode}"]`);
+                    if (img) img.src = photoData.thumbnail;
                 }
-            }
-        } catch (error) {
-            // Silently fail for individual photos
-        }
+            } catch (error) { /* silently fail */ }
+        }));
     }
 }
 
@@ -335,8 +534,8 @@ async function loadExpandedPhoto(card, bird) {
 
     try {
         const photoData = await fetchBirdPhoto(bird.speciesCode, bird.comName);
-        if (photoData && photoData.large) {
-            detailPhoto.src = photoData.large;
+        if (photoData && photoData.medium) {
+            detailPhoto.src = photoData.medium;
         } else if (photoData && photoData.thumbnail) {
             detailPhoto.src = photoData.thumbnail;
         }

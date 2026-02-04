@@ -10,6 +10,8 @@ import { initBirdList } from './components/BirdList.js';
 import { initBirdDetail, closeDetail } from './components/BirdDetail.js';
 import { initFilterControls, loadBirdData, resetFilters } from './components/FilterControls.js';
 import { formatDistance } from './services/routeService.js';
+import { addToHistory } from './services/routeHistory.js';
+import { initRecentRoutes, renderRecentRoutes } from './components/RecentRoutes.js';
 
 // Page elements
 let landingPage;
@@ -35,6 +37,7 @@ function init() {
     initBirdList();
     initBirdDetail();
     initFilterControls();
+    initRecentRoutes(handleRecentRouteSelect);
 
     // Set up navigation
     backButton.addEventListener('click', navigateToLanding);
@@ -60,6 +63,13 @@ async function handleRouteLoaded(event) {
     // Update header with route info
     routeNameEl.textContent = routeData.name || 'Untitled Route';
     routeDistanceEl.textContent = formatDistance(routeData.distance || 0);
+
+    // Add to route history
+    addToHistory({
+        id: routeData.id,
+        name: routeData.name,
+        distance: routeData.distance
+    });
 
     // Navigate to map page
     navigateToMap();
@@ -96,7 +106,18 @@ function navigateToLanding() {
     // Update URL
     history.pushState({ page: 'landing' }, '', '/');
 
+    // Render recent routes
+    renderRecentRoutes();
+
     setState({ currentPage: 'landing' });
+}
+
+/**
+ * Handle when a recent route is selected
+ * @param {string|number} routeId - The route ID to load
+ */
+function handleRecentRouteSelect(routeId) {
+    loadRouteById(routeId);
 }
 
 /**

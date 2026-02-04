@@ -24,7 +24,7 @@
 export const config = {
     // eBird API - Get your key at https://ebird.org/api/keygen
     ebird: {
-        apiKey: 'dbvvrg1t1p62', // Your eBird API key
+        apiKey: 'dbvvrg1t1p62',
         baseUrl: 'https://api.ebird.org/v2',
     },
 

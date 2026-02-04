@@ -94,6 +94,7 @@ export async function fetchBirdPhoto(speciesCode, comName = null) {
         return photoCache.get(speciesCode);
     }
 
+    // Go directly to photo endpoint (skip unreliable hero image)
     try {
         let url = `/api/photo/${speciesCode}`;
         if (comName) {
@@ -102,16 +103,24 @@ export async function fetchBirdPhoto(speciesCode, comName = null) {
         const response = await fetch(url);
 
         if (!response.ok) {
-            // Fallback to Wikipedia if backend fails
             return fetchWikipediaPhoto(speciesCode, comName);
         }
 
         const photoData = await response.json();
+        // Re-map sizes to optimized values if URLs contain asset IDs
+        // Use 160px thumbnails (smallest valid size for Macaulay CDN)
+        const assetMatch = (photoData.thumbnail || '').match(/\/asset\/(\d+)/);
+        if (assetMatch) {
+            const assetId = assetMatch[1];
+            photoData.thumbnail = `https://cdn.download.ams.birds.cornell.edu/api/v2/asset/${assetId}/160`;
+            photoData.medium = `https://cdn.download.ams.birds.cornell.edu/api/v2/asset/${assetId}/480`;
+            photoData.large = `https://cdn.download.ams.birds.cornell.edu/api/v2/asset/${assetId}/1200`;
+            photoData.assetId = assetId;
+        }
         photoCache.set(speciesCode, photoData);
         return photoData;
     } catch (error) {
         console.warn(`Error fetching photo for ${speciesCode}:`, error);
-        // Fallback to Wikipedia
         return fetchWikipediaPhoto(speciesCode, comName);
     }
 }

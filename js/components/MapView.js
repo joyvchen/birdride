@@ -23,6 +23,134 @@ let sightingMarker = null;
 // Placeholder image for bird markers (base64 encoded SVG)
 const MARKER_PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCBmaWxsPSIjZjNmNGY2IiB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIvPjx0ZXh0IHk9Ii42NWVtIiBmb250LXNpemU9IjUwIiB4PSIyNSI+8J+QpjwvdGV4dD48L3N2Zz4=';
 
+// Cluster popover elements
+let clusterPopover = null;
+let clusterPopoverList = null;
+let clusterPopoverCount = null;
+let currentClusterLatLng = null;
+
+/**
+ * Initialize the cluster popover
+ */
+function initClusterPopover() {
+    clusterPopover = document.getElementById('cluster-popover');
+    clusterPopoverList = clusterPopover.querySelector('.cluster-popover-list');
+    clusterPopoverCount = clusterPopover.querySelector('.cluster-popover-count');
+
+    const closeBtn = clusterPopover.querySelector('.cluster-popover-close');
+
+    // Close on button click
+    closeBtn.addEventListener('click', closeClusterPopover);
+
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !clusterPopover.classList.contains('hidden')) {
+            closeClusterPopover();
+        }
+    });
+}
+
+/**
+ * Position the cluster popover near the cluster
+ * @param {object} latLng - Leaflet LatLng of the cluster
+ */
+function positionClusterPopover(latLng) {
+    if (!latLng || !map) return;
+
+    // On mobile (< 768px), CSS handles centering via fixed positioning
+    if (window.innerWidth <= 768) {
+        clusterPopover.style.left = '';
+        clusterPopover.style.top = '';
+        return;
+    }
+
+    // Desktop: position near cluster
+    const point = map.latLngToContainerPoint(latLng);
+    const mapContainer = document.getElementById('map-container');
+    const mapRect = mapContainer.getBoundingClientRect();
+    const popoverWidth = 280;
+    const popoverHeight = clusterPopover.offsetHeight || 300;
+
+    // Position 20px to the right of the cluster
+    let left = point.x + 20;
+    let top = point.y - (popoverHeight / 2);
+
+    // If off-screen right, position to the left of the cluster
+    if (left + popoverWidth > mapRect.width) {
+        left = point.x - popoverWidth - 20;
+    }
+
+    // Clamp to viewport bounds
+    left = Math.max(10, Math.min(left, mapRect.width - popoverWidth - 10));
+    top = Math.max(10, Math.min(top, mapRect.height - popoverHeight - 10));
+
+    clusterPopover.style.left = `${left}px`;
+    clusterPopover.style.top = `${top}px`;
+}
+
+/**
+ * Open the cluster popover with a list of birds
+ * @param {array} childMarkers - Array of Leaflet markers in the cluster
+ * @param {object} latLng - Leaflet LatLng of the cluster
+ */
+function openClusterPopover(childMarkers, latLng) {
+    currentClusterLatLng = latLng;
+
+    // Update count
+    clusterPopoverCount.textContent = `${childMarkers.length} birds`;
+
+    // Build list HTML
+    const items = childMarkers.map(marker => {
+        const bird = marker.birdData;
+        if (!bird) return '';
+        const photoUrl = photoUrlCache.get(bird.speciesCode) || MARKER_PLACEHOLDER;
+        const rarityClass = bird.rarity || 'common';
+        return `
+            <div class="cluster-popover-item" data-bird-index="${bird.index}">
+                <img src="${photoUrl}" alt="" class="cluster-popover-thumb">
+                <span class="cluster-popover-name">${bird.comName}</span>
+                <span class="rarity-dot ${rarityClass}"></span>
+            </div>
+        `;
+    }).join('');
+
+    clusterPopoverList.innerHTML = items;
+
+    // Bind click handlers
+    clusterPopoverList.querySelectorAll('.cluster-popover-item').forEach(item => {
+        item.addEventListener('click', () => {
+            // Remove selected from all items
+            clusterPopoverList.querySelectorAll('.cluster-popover-item').forEach(el => {
+                el.classList.remove('selected');
+            });
+
+            // Add selected to clicked item
+            item.classList.add('selected');
+
+            // Update state to select bird
+            const birdIndex = parseInt(item.dataset.birdIndex);
+            const marker = markersByBirdId.get(birdIndex);
+            if (marker && marker.birdData) {
+                setState({ selectedBird: { ...marker.birdData } });
+            }
+        });
+    });
+
+    // Show popover
+    clusterPopover.classList.remove('hidden');
+
+    // Position popover near cluster
+    positionClusterPopover(latLng);
+}
+
+/**
+ * Close the cluster popover
+ */
+function closeClusterPopover() {
+    clusterPopover.classList.add('hidden');
+    currentClusterLatLng = null;
+}
+
 /**
  * Initialize the map
  */
@@ -43,12 +171,48 @@ export function initMap() {
     // Create marker cluster group for birds
     birdMarkersLayer = L.markerClusterGroup({
         maxClusterRadius: 50,
-        spiderfyOnMaxZoom: true,
+        spiderfyOnMaxZoom: false,
         showCoverageOnHover: false,
-        zoomToBoundsOnClick: true,
+        zoomToBoundsOnClick: false,
         iconCreateFunction: createClusterIcon,
     });
     map.addLayer(birdMarkersLayer);
+
+    // Initialize cluster popover
+    initClusterPopover();
+
+    // Handle cluster click - only open popover for large clusters (6+ birds)
+    birdMarkersLayer.on('clusterclick', function (e) {
+        const cluster = e.layer;
+        const childMarkers = cluster.getAllChildMarkers();
+
+        if (childMarkers.length >= 6) {
+            // Large clusters: show popover list
+            openClusterPopover(childMarkers, cluster.getLatLng());
+        } else {
+            // Small clusters: zoom in, or spiderfy if at max zoom
+            if (map.getZoom() === map.getMaxZoom()) {
+                cluster.spiderfy();
+            } else {
+                cluster.zoomToBounds({ padding: [20, 20] });
+            }
+        }
+
+        e.originalEvent?.preventDefault?.();
+        e.originalEvent?.stopPropagation?.();
+    });
+
+    // Close popover when clicking elsewhere on map
+    map.on('click', function () {
+        closeClusterPopover();
+    });
+
+    // Update popover position during pan/zoom
+    map.on('move', function () {
+        if (currentClusterLatLng && !clusterPopover.classList.contains('hidden')) {
+            positionClusterPopover(currentClusterLatLng);
+        }
+    });
 
     // Subscribe to state changes
     subscribe('filteredBirds', updateBirdMarkers);
@@ -188,24 +352,23 @@ const photoUrlCache = new Map();
  * Load photos asynchronously for marker icons
  */
 async function loadMarkerPhotos(birds) {
-    for (let i = 0; i < birds.length; i++) {
-        const bird = birds[i];
-        try {
-            const photoData = await fetchBirdPhoto(bird.speciesCode, bird.comName);
-            if (photoData && photoData.thumbnail) {
-                // Cache the photo URL for this species
-                photoUrlCache.set(bird.speciesCode, photoData.thumbnail);
-
-                // Update the marker's icon with the real photo
-                const marker = markersByBirdId.get(i);
-                if (marker) {
-                    const newIcon = createBirdIconWithPhoto(bird, i, photoData.thumbnail);
-                    marker.setIcon(newIcon);
+    const BATCH_SIZE = 6;
+    for (let i = 0; i < birds.length; i += BATCH_SIZE) {
+        const batch = birds.slice(i, i + BATCH_SIZE);
+        const indices = batch.map((_, j) => i + j);
+        await Promise.all(batch.map(async (bird, j) => {
+            try {
+                const photoData = await fetchBirdPhoto(bird.speciesCode, bird.comName);
+                if (photoData && photoData.thumbnail) {
+                    photoUrlCache.set(bird.speciesCode, photoData.thumbnail);
+                    const marker = markersByBirdId.get(indices[j]);
+                    if (marker) {
+                        const newIcon = createBirdIconWithPhoto(bird, indices[j], photoData.thumbnail);
+                        marker.setIcon(newIcon);
+                    }
                 }
-            }
-        } catch (error) {
-            // Silently fail for individual photos
-        }
+            } catch (error) { /* silently fail */ }
+        }));
     }
 }
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BirdRide - Discover Birds Along Your Cycling Routes</title>
-    <meta name="description" content="See what's flying along your ride before you go. Discover bird sightings along cycling routes.">
+    <meta name="description" content="See recently sighted birds along your ride before you go. Discover bird sightings along cycling routes.">
 
     <!-- Leaflet CSS for maps -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -27,7 +27,7 @@
         <div id="landing-page" class="page active">
             <header class="landing-header">
                 <h1 class="logo">BirdRide</h1>
-                <p class="tagline">See what's flying along your ride before you go</p>
+                <p class="tagline">Discover recently sighted birds along your route</p>
             </header>
 
             <main class="landing-main">
@@ -44,7 +44,7 @@
                                 type="text"
                                 id="unified-input"
                                 class="unified-input"
-                                placeholder="Paste a RideWithGPS route link..."
+                                placeholder="Paste a RideWithGPS link or search a city..."
                                 autocomplete="off"
                                 spellcheck="false"
                             >
@@ -54,19 +54,27 @@
                                 </svg>
                             </button>
                         </div>
-                        <button id="load-route-btn" class="load-route-button" disabled>
-                            Show Birds on Route
-                            <span class="enter-hint">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M9 10l-5 5 5 5"/>
-                                    <path d="M20 4v7a4 4 0 0 1-4 4H4"/>
-                                </svg>
-                            </span>
+                        <button id="load-route-btn" class="arrow-button" disabled aria-label="Load route">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                            </svg>
                         </button>
+                    </div>
+
+                    <!-- Search dropdown for locations and routes -->
+                    <div id="search-dropdown" class="input-dropdown hidden">
+                        <div id="location-results"></div>
+                        <div id="route-results"></div>
                     </div>
 
                     <!-- Error message -->
                     <div id="input-error" class="input-error hidden"></div>
+                </div>
+
+                <!-- Recent Routes -->
+                <div id="recent-routes" class="recent-routes hidden">
+                    <h3 class="recent-routes-title">Recently Viewed</h3>
+                    <div id="recent-routes-list" class="recent-routes-list"></div>
                 </div>
 
                 <!-- Loading indicator -->
@@ -107,8 +115,8 @@
                         </select>
                     </div>
 
-                    <!-- Distance filter -->
-                    <div class="distance-selector">
+                    <!-- Distance filter (species view only) -->
+                    <div id="distance-filter-container" class="distance-selector">
                         <span>Within </span>
                         <select id="distance-filter" class="distance-select">
                             <option value="0.25" selected>0.25 mi</option>
@@ -117,8 +125,8 @@
                         </select>
                     </div>
 
-                    <!-- Rarity filter -->
-                    <div class="rarity-filter">
+                    <!-- Rarity filter (species view only) -->
+                    <div id="rarity-filter-container" class="rarity-filter">
                         <button id="filter-notable" class="filter-button" data-filter="notable">Notable</button>
                         <button id="filter-all" class="filter-button active" data-filter="all">All Birds</button>
                     </div>
@@ -134,6 +142,15 @@
                     <div id="map-loading" class="map-loading hidden">
                         <div class="spinner"></div>
                         <span>Loading bird data...</span>
+                    </div>
+
+                    <!-- Cluster Popover -->
+                    <div id="cluster-popover" class="cluster-popover hidden">
+                        <div class="cluster-popover-header">
+                            <span class="cluster-popover-count"></span>
+                            <button class="cluster-popover-close">&times;</button>
+                        </div>
+                        <div class="cluster-popover-list"></div>
                     </div>
                 </div>
 
@@ -201,6 +218,16 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Photo Modal -->
+    <div id="photo-modal" class="photo-modal hidden">
+        <div class="photo-modal-backdrop"></div>
+        <div class="photo-modal-content">
+            <img class="photo-modal-img" src="" alt="">
+            <div class="photo-modal-credit"></div>
+            <button class="photo-modal-close">&times;</button>
         </div>
     </div>
 
