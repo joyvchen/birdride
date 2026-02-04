@@ -261,7 +261,7 @@ img {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 63.5px;
+    width: 40px;
     height: 63.5px;
     background: var(--color-primary);
     color: white;
@@ -574,6 +574,8 @@ img {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-sm);
+    max-height: 340px;  /* ~5 items visible */                          
+    overflow-y: auto;       
 }
 
 .recent-route-card {
@@ -1633,7 +1635,7 @@ img {
 /* ============================================
    Responsive Styles - Tablet
    ============================================ */
-@media (min-width: 769px) and (max-width: 1024px) {
+@media (max-width: 1024px) {
     .header-controls {
         flex-wrap: wrap;
         gap: var(--spacing-sm);
@@ -1768,7 +1770,7 @@ img {
         border: 1px solid var(--color-border);
         border-bottom: none;
         box-shadow: 0 -10px 25px -5px rgb(0 0 0 / 0.1);
-        z-index: 20;
+        z-index: 1000;
         transform: translateY(calc(100% - 80px));
         transition: transform 0.3s ease;
         touch-action: none;
@@ -1828,20 +1830,6 @@ img {
     .bird-card-photo {
         width: 40px;
         height: 40px;
-    }
-}
-
-/* ============================================
-   Responsive Styles - Small Mobile (< 450px)
-   ============================================ */
-@media (max-width: 450px) {
-    /* Default to peek state (200px visible) for better discoverability */
-    .bird-sidebar {
-        transform: translateY(calc(100% - 200px));
-    }
-
-    .bird-sidebar.collapsed {
-        transform: translateY(calc(100% - 200px));
     }
 }
 

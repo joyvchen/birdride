@@ -157,13 +157,15 @@ function setupBottomSheet() {
     let currentY = 0;
     let isDragging = false;
     let initialTransform = 0;
+    let hasDragged = false;
 
     /**
      * Set sheet state with CSS classes
      */
     function setSheetState(state) {
         sidebarEl.classList.remove('peek', 'expanded', 'dragging');
-        sidebarEl.style.transform = ''; // Always clear inline transform
+        sidebarEl.style.top = '';      // Clear inline top
+        sidebarEl.style.transform = ''; // Clear inline transform
         if (state === STATES.PEEK) {
             sidebarEl.classList.add('peek');
         } else if (state === STATES.EXPANDED) {
@@ -177,12 +179,12 @@ function setupBottomSheet() {
      * Get the Y position for a given state
      */
     function getStatePosition(state) {
-        const height = sidebarEl.offsetHeight;
+        const vh = window.innerHeight;
         switch (state) {
-            case STATES.COLLAPSED: return height - 80;
-            case STATES.PEEK: return height - 200;
-            case STATES.EXPANDED: return 0;
-            default: return height - 80;
+            case STATES.COLLAPSED: return vh - 80;   // 80px visible
+            case STATES.PEEK: return vh - 200;       // 200px visible
+            case STATES.EXPANDED: return vh * 0.15;  // 15vh from top
+            default: return vh - 200;
         }
     }
 
@@ -192,6 +194,7 @@ function setupBottomSheet() {
     function handleTouchStart(e) {
         if (window.innerWidth > 768) return;
 
+        hasDragged = false;  // Reset drag flag
         startY = e.touches[0].clientY;
         startTime = Date.now();
         currentY = startY;
@@ -209,9 +212,19 @@ function setupBottomSheet() {
 
         currentY = e.touches[0].clientY;
         const deltaY = currentY - startY;
-        const newTransform = Math.max(0, Math.min(initialTransform + deltaY, sidebarEl.offsetHeight - 80));
 
-        sidebarEl.style.transform = `translateY(calc(100% - ${sidebarEl.offsetHeight - newTransform}px))`;
+        // Mark as dragged if moved more than 10px
+        if (Math.abs(deltaY) > 10) {
+            hasDragged = true;
+        }
+
+        // Calculate new top position (clamped between 15vh and 100vh - 80px)
+        const minTop = window.innerHeight * 0.15;  // expanded position
+        const maxTop = window.innerHeight - 80;     // collapsed position
+        const currentTop = initialTransform + deltaY;
+        const newTop = Math.max(minTop, Math.min(currentTop, maxTop));
+
+        sidebarEl.style.top = `${newTop}px`;
     }
 
     /**
@@ -222,7 +235,7 @@ function setupBottomSheet() {
 
         isDragging = false;
         sidebarEl.classList.remove('dragging');
-        sidebarEl.style.transform = '';
+        sidebarEl.style.top = '';  // Clear inline top
 
         const deltaY = currentY - startY;
         const deltaTime = Date.now() - startTime;
@@ -276,10 +289,11 @@ function setupBottomSheet() {
     header.addEventListener('click', (e) => {
         if (window.innerWidth > 768) return;
         // Only trigger if not a drag
-        if (Math.abs(currentY - startY) < 10) {
+        if (!hasDragged && Math.abs(currentY - startY) < 10) {
             const nextState = (currentState + 1) % 3;
             setSheetState(nextState);
         }
+        hasDragged = false;  // Reset for next interaction
     });
 }
 
