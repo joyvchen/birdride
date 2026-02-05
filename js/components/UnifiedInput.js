@@ -11,7 +11,6 @@ let inputEl;
 let clearBtn;
 let errorEl;
 let loadingEl;
-let loadBtnEl;
 let searchDropdown;
 let locationResults;
 let routeResults;
@@ -30,7 +29,6 @@ export function initUnifiedInput() {
     clearBtn = document.getElementById('clear-input');
     errorEl = document.getElementById('input-error');
     loadingEl = document.getElementById('landing-loading');
-    loadBtnEl = document.getElementById('load-route-btn');
     searchDropdown = document.getElementById('search-dropdown');
     locationResults = document.getElementById('location-results');
     routeResults = document.getElementById('route-results');
@@ -41,7 +39,6 @@ export function initUnifiedInput() {
     inputEl.addEventListener('keydown', handleKeyDown);
     inputEl.addEventListener('focus', handleFocus);
     clearBtn.addEventListener('click', handleClear);
-    loadBtnEl.addEventListener('click', handleLoadButtonClick);
 
     // Close dropdown when clicking outside
     document.addEventListener('click', (e) => {
@@ -68,13 +65,6 @@ function handlePaste() {
         clearBtn.classList.toggle('hidden', !value);
         hideError();
         hideDropdown();
-
-        // Enable button if there's any input
-        if (value) {
-            showLoadButton();
-        } else {
-            hideLoadButton();
-        }
     }, 0);
 }
 
@@ -91,13 +81,9 @@ function handleInput(e) {
     hideError();
 
     if (!value) {
-        hideLoadButton();
         hideDropdown();
         return;
     }
-
-    // Enable button for any input
-    showLoadButton();
 
     // Check if it's a RideWithGPS URL
     if (isUrl(value)) {
@@ -159,32 +145,12 @@ function handleKeyDown(e) {
 }
 
 /**
- * Handle load button click
- */
-function handleLoadButtonClick() {
-    const value = inputEl.value.trim();
-    if (!value) return;
-
-    // If it's a RideWithGPS URL, load it directly
-    if (isRideWithGPSUrl(value)) {
-        validateAndLoadRoute(value);
-        return;
-    }
-
-    // Otherwise, trigger location search (show dropdown)
-    if (value.length >= 2) {
-        searchLocations(value);
-    }
-}
-
-/**
  * Handle clear button click
  */
 function handleClear() {
     inputEl.value = '';
     clearBtn.classList.add('hidden');
     hideError();
-    hideLoadButton();
     hideDropdown();
     selectedLocation = null;
     currentSearchMode = null;
@@ -467,20 +433,6 @@ function hideDropdown() {
 }
 
 /**
- * Enable load button
- */
-function showLoadButton() {
-    loadBtnEl.disabled = false;
-}
-
-/**
- * Disable load button
- */
-function hideLoadButton() {
-    loadBtnEl.disabled = true;
-}
-
-/**
  * Show error message
  */
 function showError(message) {
@@ -537,7 +489,6 @@ export function resetUnifiedInput() {
     hideError();
     hideLoading();
     hideDropdown();
-    loadBtnEl.disabled = true;
     selectedLocation = null;
     currentSearchMode = null;
 }

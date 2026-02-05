@@ -32,25 +32,22 @@
 
             <main class="landing-main">
                 <div class="unified-input-container">
-                    <div class="unified-input-row">
-                        <div class="unified-input-wrapper">
-                            <input
-                                type="text"
-                                id="unified-input"
-                                class="unified-input"
-                                placeholder="Paste RideWithGPS link or search city..."
-                                autocomplete="off"
-                                spellcheck="false"
-                            >
-                            <button id="clear-input" class="clear-button hidden" aria-label="Clear input">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M18 6L6 18M6 6l12 12"></path>
-                                </svg>
-                            </button>
-                        </div>
-                        <button id="load-route-btn" class="arrow-button" disabled aria-label="Load route">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                    <div class="unified-input-wrapper">
+                        <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="M21 21l-4.35-4.35"></path>
+                        </svg>
+                        <input
+                            type="search"
+                            id="unified-input"
+                            class="unified-input"
+                            placeholder="Search city or paste RideWithGPS link"
+                            autocomplete="off"
+                            spellcheck="false"
+                        >
+                        <button id="clear-input" class="clear-button hidden" aria-label="Clear input">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 6L6 18M6 6l12 12"></path>
                             </svg>
                         </button>
                     </div>
