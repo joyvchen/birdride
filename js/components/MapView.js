@@ -10,6 +10,20 @@ import { fetchBirdPhoto } from '../services/birdService.js';
 // Map instance
 let map = null;
 let routeLayer = null;
+
+/**
+ * Fit the map view to show the full route
+ */
+function fitToRoute() {
+    if (!routeLayer) return;
+    map.invalidateSize();
+    const sidebarWidth = window.innerWidth > 768 ? 380 : 60;
+    map.fitBounds(routeLayer.getBounds(), {
+        paddingTopLeft: [60, 60],
+        paddingBottomRight: [sidebarWidth, 60],
+        animate: true,
+    });
+}
 let birdMarkersLayer = null;
 let startMarker = null;
 let endMarker = null;
@@ -168,6 +182,25 @@ export function initMap() {
         maxZoom: 19,
     }).addTo(map);
 
+    // Add fit-to-route button control
+    const FitToRouteControl = L.Control.extend({
+        options: { position: 'topleft' },
+        onAdd: function() {
+            const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control fit-route-control');
+            const button = L.DomUtil.create('a', 'fit-route-button', container);
+            button.href = '#';
+            button.title = 'Fit to route';
+            button.innerHTML = '⤢';
+            button.setAttribute('role', 'button');
+            L.DomEvent.on(button, 'click', function(e) {
+                L.DomEvent.preventDefault(e);
+                fitToRoute();
+            });
+            return container;
+        }
+    });
+    map.addControl(new FitToRouteControl());
+
     // Create marker cluster group for birds
     birdMarkersLayer = L.markerClusterGroup({
         maxClusterRadius: 50,
@@ -299,13 +332,7 @@ export function displayRoute(routeData) {
     // Fit map to route bounds with asymmetric padding for sidebar
     // Use setTimeout to ensure map container has correct size after page transition
     setTimeout(() => {
-        map.invalidateSize();
-        const sidebarWidth = window.innerWidth > 768 ? 380 : 60;
-        map.fitBounds(routeLayer.getBounds(), {
-            paddingTopLeft: [60, 60],
-            paddingBottomRight: [sidebarWidth, 60],
-            animate: false,
-        });
+        fitToRoute();
     }, 150);
 }
 

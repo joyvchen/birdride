@@ -1341,6 +1341,27 @@ img {
     background: rgba(37, 99, 235, 0.4);
 }
 
+/* Fit to Route Button */
+.fit-route-control {
+    margin-top: 10px !important;
+}
+
+.fit-route-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    font-size: 18px;
+    text-decoration: none;
+    color: #333;
+    background: white;
+}
+
+.fit-route-button:hover {
+    background: #f4f4f4;
+}
+
 /* Start/End Markers */
 .route-marker {
     width: 28px;
